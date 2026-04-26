@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Cinema | Quem Escolheu?</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="login-overlay" class="overlay">
+        <div class="glass-card login-card">
+            <h1>TikTok Cinema</h1>
+            <p>Entre para assistir e votar</p>
+            <input type="text" id="username-input" placeholder="Seu nome..." maxlength="20">
+            <button id="join-btn">Entrar com Nome</button>
+            <div class="divider"><span>OU</span></div>
+            <button id="tiktok-login-btn" class="tiktok-btn">
+                <img src="https://www.tiktok.com/favicon.ico" alt="TikTok">
+                Entrar com TikTok
+            </button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <span class="icon">🎬</span>
+                <h1>TikTok Cinema</h1>
+            </div>
+            <div class="user-status">
+                <span id="online-count">0 online</span>
+                <div id="current-user-tag" class="user-tag"></div>
+            </div>
+        </header>
+
+        <main>
+            <section class="video-section">
+                <div class="video-container glass-card" id="video-wrapper">
+                    <div id="video-placeholder">
+                        <p>Nenhum vídeo sendo reproduzido</p>
+                        <small>Adicione um link do TikTok para começar</small>
+                    </div>
+                    <!-- TikTok Player will be injected here -->
+                </div>
+
+                <div class="controls glass-card">
+                    <input type="text" id="tiktok-url" placeholder="Cole o link do TikTok aqui...">
+                    <button id="add-video-btn">Adicionar</button>
+                </div>
+
+                <div id="suggested-videos-section" class="suggested-section glass-card hidden">
+                    <h3>Seus Curtidos (Sugestões)</h3>
+                    <div id="suggested-list" class="suggested-list">
+                        <!-- Sugestões injetadas aqui -->
+                    </div>
+                    <button id="sync-likes-btn" class="sync-btn">🔄 Sincronizar Novos</button>
+                </div>
+
+                <div class="playlist-container glass-card">
+                    <h3>Fila de Reprodução</h3>
+                    <ul id="playlist-items">
+                        <li class="empty-list">A fila está vazia</li>
+                    </ul>
+                </div>
+            </section>
+
+            <aside class="chat-section glass-card">
+                <div class="chat-header">
+                    <h3>Chat ao Vivo</h3>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="system-msg">Bem-vindo ao TikTok Cinema!</div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Escreva algo...">
+                    <button id="send-chat-btn">➔</button>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Voting Overlay -->
+    <div id="voting-overlay" class="overlay hidden">
+        <div class="glass-card voting-card">
+            <h2>Quem escolheu esse vídeo?</h2>
+            <div class="timer-bar"><div class="timer-fill"></div></div>
+            <div id="voting-options" class="voting-options">
+                <!-- User options injected here -->
+            </div>
+            <p id="voting-status">Aguardando votos...</p>
+        </div>
+    </div>
+
+    <!-- Results Overlay -->
+    <div id="results-overlay" class="overlay hidden">
+        <div class="glass-card results-card">
+            <h2 id="result-title">O autor era...</h2>
+            <div id="winner-reveal" class="winner-reveal">
+                <!-- Winner name and avatar -->
+            </div>
+            <div class="stats-container" id="voting-stats">
+                <!-- Stats injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <!-- TikTok Embed Script -->
+    <script async src="https://www.tiktok.com/embed.js"></script>
+</body>
+</html>
