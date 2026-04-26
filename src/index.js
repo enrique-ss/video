@@ -33,7 +33,9 @@ const supabaseEnabled = runtimeMode === 'online';
 const { applySchema, dbPath } = require('./setup');
 
 // Middleware
-app.use(express.static(path.join(__dirname, '../public')));
+const publicPath = path.resolve(__dirname, '..', 'public');
+console.log('Servindo arquivos estáticos de:', publicPath);
+app.use(express.static(publicPath));
 app.use(express.json());
 app.use(cookieParser());
 
