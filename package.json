@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "setup": "node src/setup.js",
-    "dev": "node --watch src/index.js",
+    "dev": "npx kill-port 3002 && node --watch src/index.js",
     "start": "node src/index.js"
   },
   "dependencies": {
