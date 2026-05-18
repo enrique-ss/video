@@ -2,8 +2,8 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok Cinema | Quem Escolheu?</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TikTok Cinema</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,105 +11,105 @@
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+    <!-- Login Overlay -->
     <div id="login-overlay" class="overlay">
         <div class="glass-card login-card">
-            <h1>TikTok Cinema</h1>
-            <p>Entre para assistir e votar</p>
-            <input type="text" id="username-input" placeholder="Seu nome..." maxlength="20">
-            <button id="join-btn">Entrar com Nome</button>
-            <div class="divider"><span>OU</span></div>
-            <button id="tiktok-login-btn" class="tiktok-btn">
-                <img src="https://www.tiktok.com/favicon.ico" alt="TikTok">
-                Entrar com TikTok
-            </button>
+            <h1 class="brand-title">Cinema 🎬</h1>
+            <p class="brand-subtitle">Faça login para assistir e palpitar</p>
+            <input type="email" id="login-email" placeholder="E-mail..." required>
+            <input type="password" id="login-password" placeholder="Senha..." required>
+            <button id="btn-submit-login">Entrar</button>
+            <p class="auth-toggle">Não tem conta? <a href="#" id="link-to-register">Cadastre-se</a></p>
         </div>
     </div>
 
-    <div class="app-container">
-        <header>
-            <div class="logo">
-                <span class="icon">🎬</span>
-                <h1>TikTok Cinema</h1>
+    <!-- Register Overlay (Oculto por padrão) -->
+    <div id="register-overlay" class="overlay hidden">
+        <div class="glass-card login-card">
+            <h1 class="brand-title">Cinema 🎬</h1>
+            <p class="brand-subtitle">Crie sua conta para participar</p>
+            <input type="text" id="register-name" placeholder="Seu nome..." maxlength="15" required>
+            <input type="email" id="register-email" placeholder="E-mail..." required>
+            <input type="password" id="register-password" placeholder="Senha..." required>
+            <button id="btn-submit-register">Criar Conta</button>
+            <p class="auth-toggle">Já tem conta? <a href="#" id="link-to-login">Fazer Login</a></p>
+        </div>
+    </div>
+
+    <!-- Main Mobile Frame Container -->
+    <div class="mobile-frame">
+        <header class="app-header">
+            <div class="header-left">
+                <span class="app-logo">🍿</span>
+                <!-- Sleek inline input inside the header for adding videos -->
+                <div class="header-input-wrapper">
+                    <input type="text" id="tiktok-url" placeholder="Adicionar link...">
+                    <button id="add-video-btn">＋</button>
+                </div>
+                <!-- Host Start button inside the header -->
+                <button id="start-game-btn" class="header-start-btn" style="display: none;">Iniciar ➔</button>
             </div>
-            <div class="user-status">
-                <span id="online-count">0 online</span>
+            <div class="header-right">
                 <div id="current-user-tag" class="user-tag"></div>
+                <button id="logout-btn" class="logout-btn" title="Sair">🚪</button>
             </div>
         </header>
 
-        <main>
-            <section class="video-section">
-                <div class="video-container glass-card" id="video-wrapper">
-                    <div id="video-placeholder">
-                        <p>Nenhum vídeo sendo reproduzido</p>
-                        <small>Adicione um link do TikTok para começar</small>
-                    </div>
-                    <!-- TikTok Player will be injected here -->
+        <!-- Main Content Area (Unified Single Screen) -->
+        <main class="app-content">
+            <!-- Video Player (Top Area) -->
+            <div class="video-card glass-card" id="video-wrapper">
+                <div id="video-placeholder">
+                    <p>Aguardando cinema...</p>
+                    <small>Adicione links acima e aguarde o Host!</small>
                 </div>
+            </div>
 
-                <div class="controls glass-card">
-                    <input type="text" id="tiktok-url" placeholder="Cole o link do TikTok aqui...">
-                    <button id="add-video-btn">Adicionar</button>
-                </div>
 
-                <div id="suggested-videos-section" class="suggested-section glass-card hidden">
-                    <h3>Seus Curtidos (Sugestões)</h3>
-                    <div id="suggested-list" class="suggested-list">
-                        <!-- Sugestões injetadas aqui -->
-                    </div>
-                    <button id="sync-likes-btn" class="sync-btn">🔄 Sincronizar Novos</button>
+            <!-- Live Chat and Game Stats (Bottom Area) -->
+            <div class="chat-viewport glass-card">
+                <div class="chat-header-slim">
+                    <span>🎬 Fila: <strong id="queue-count">0</strong> vídeos</span>
+                    <span class="online-indicator" id="online-count">0 online</span>
                 </div>
-
-                <div class="playlist-container glass-card">
-                    <h3>Fila de Reprodução</h3>
-                    <ul id="playlist-items">
-                        <li class="empty-list">A fila está vazia</li>
-                    </ul>
-                </div>
-            </section>
-
-            <aside class="chat-section glass-card">
-                <div class="chat-header">
-                    <h3>Chat ao Vivo</h3>
-                </div>
+                
                 <div class="chat-messages" id="chat-messages">
                     <div class="system-msg">Bem-vindo ao TikTok Cinema!</div>
                 </div>
-                <div class="chat-input-area">
-                    <input type="text" id="chat-input" placeholder="Escreva algo...">
+                
+                <div class="chat-input-bar">
+                    <input type="text" id="chat-input" placeholder="Comente aqui...">
                     <button id="send-chat-btn">➔</button>
                 </div>
-            </aside>
+            </div>
         </main>
     </div>
 
     <!-- Voting Overlay -->
     <div id="voting-overlay" class="overlay hidden">
         <div class="glass-card voting-card">
-            <h2>Quem escolheu esse vídeo?</h2>
+            <h2>Quem escolheu este vídeo?</h2>
             <div class="timer-bar"><div class="timer-fill"></div></div>
             <div id="voting-options" class="voting-options">
-                <!-- User options injected here -->
+                <!-- Dynamic vote buttons -->
             </div>
             <p id="voting-status">Aguardando votos...</p>
         </div>
     </div>
 
-    <!-- Results Overlay -->
+    <!-- Results/Podium Final Overlay -->
     <div id="results-overlay" class="overlay hidden">
         <div class="glass-card results-card">
-            <h2 id="result-title">O autor era...</h2>
+            <h2>🏆 Pódio Final 🏆</h2>
             <div id="winner-reveal" class="winner-reveal">
-                <!-- Winner name and avatar -->
+                <!-- Final Rankings table -->
             </div>
-            <div class="stats-container" id="voting-stats">
-                <!-- Stats injected here -->
-            </div>
+            <div class="stats-container" id="voting-stats"></div>
+            <button id="play-again-btn" class="glow-btn" style="display: none; width: 100%;">Jogar Novamente</button>
         </div>
     </div>
 
     <script src="js/app.js"></script>
-    <!-- TikTok Embed Script -->
     <script async src="https://www.tiktok.com/embed.js"></script>
 </body>
 </html>

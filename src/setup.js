@@ -13,6 +13,7 @@ function applySchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
+      name TEXT,
       email TEXT UNIQUE,
       password_hash TEXT,
       created_at TEXT
@@ -32,6 +33,13 @@ function applySchema(db) {
       added_at TEXT
     );
   `);
+
+  // Migração segura para adicionar a coluna 'name' caso o banco já existisse
+  try {
+    db.prepare("ALTER TABLE users ADD COLUMN name TEXT").run();
+  } catch (err) {
+    // Ignora se a coluna já existir
+  }
 }
 
 function recreateDatabase() {
