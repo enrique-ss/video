@@ -212,7 +212,7 @@ btnSubmitRegister.addEventListener('click', async () => {
         if (data.error) {
             alert(data.error);
         } else if (data.success) {
-            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color, data.user.token);
+            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color, data.user.token, data.user.acervo);
         }
     } catch (err) {
         console.error(err);
@@ -241,7 +241,7 @@ btnSubmitLogin.addEventListener('click', async () => {
         if (data.error) {
             alert(data.error);
         } else if (data.success) {
-            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color, data.user.token);
+            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color, data.user.token, data.user.acervo);
         }
     } catch (err) {
         console.error(err);
@@ -282,7 +282,7 @@ const savedUser = localStorage.getItem('cinema_das_guria_user');
 if (savedUser) {
     try {
         myUser = JSON.parse(savedUser);
-        completeLogin(myUser.name, myUser.id, myUser.avatar, myUser.color, myUser.bg_color);
+        completeLogin(myUser.name, myUser.id, myUser.avatar, myUser.color, myUser.bg_color, myUser.token, myUser.acervo);
     } catch (err) {
         console.error('Falha ao restaurar sessão de usuário:', err);
         if (loginOverlay) loginOverlay.classList.remove('hidden');
@@ -311,7 +311,7 @@ if (currentUserTag) {
     });
 }
 
-function completeLogin(name, id, avatar, color, bg_color, token) {
+function completeLogin(name, id, avatar, color, bg_color, token, acervo) {
     myUser.name = name;
     if (id) {
         myUser.id = id;
@@ -326,6 +326,11 @@ function completeLogin(name, id, avatar, color, bg_color, token) {
     if (token) {
         myUser.token = token;
     }
+    if (acervo) {
+        myUser.acervo = acervo;
+    } else if (!myUser.acervo) {
+        myUser.acervo = [];
+    }
 
     localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
     
@@ -334,6 +339,13 @@ function completeLogin(name, id, avatar, color, bg_color, token) {
     localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
 
     socket.emit('join', myUser);
+
+    // Sincroniza acervo em segundo plano para garantir que esteja sempre atualizado com o servidor
+    if (myUser.id) {
+        getAcervo().then(() => {
+            renderAcervo();
+        });
+    }
 
     if (loginOverlay) loginOverlay.style.opacity = '0';
     if (registerOverlay) registerOverlay.style.opacity = '0';

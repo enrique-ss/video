@@ -161,6 +161,30 @@ function saveRankingToDb(sortedRank) {
   }
 }
 
+async function getUserAcervo(userId) {
+  if (supabaseEnabled && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('acervo')
+        .select('*')
+        .eq('user_id', userId)
+        .order('id', { ascending: false });
+      return data || [];
+    } catch (e) {
+      console.error('Erro ao buscar acervo no login/registro Supabase:', e);
+      return [];
+    }
+  } else if (offlineDb) {
+    try {
+      return offlineDb.prepare('SELECT * FROM acervo WHERE user_id = ? ORDER BY id DESC').all(userId);
+    } catch (e) {
+      console.error('Erro ao buscar acervo no login/registro SQLite:', e);
+      return [];
+    }
+  }
+  return [];
+}
+
 // API de Registro de Usuários
 app.post('/api/register', async (req, res) => {
   const { name, email, password, avatar } = req.body;
@@ -209,11 +233,12 @@ app.post('/api/register', async (req, res) => {
       }
 
       const token = authData.session ? authData.session.access_token : null;
+      const acervo = await getUserAcervo(finalUserId);
 
       console.log(`Novo usuário registrado via Supabase Auth: ${name} (${email.toLowerCase()})`);
       return res.status(201).json({
         success: true,
-        user: { id: finalUserId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c', token }
+        user: { id: finalUserId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c', token, acervo }
       });
     } catch (err) {
       console.error('Erro inesperado no registro Supabase:', err.message);
@@ -231,9 +256,11 @@ app.post('/api/register', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     insert.run(userId, name, email.toLowerCase(), passwordHash, avatar || null, '#0a0a0c', createdAt);
+    
+    const acervo = await getUserAcervo(userId);
     return res.status(201).json({
       success: true,
-      user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
+      user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c', acervo }
     });
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed')) {
@@ -296,15 +323,17 @@ app.post('/api/login', async (req, res) => {
           console.error('Exceção ao auto-criar perfil público no Supabase:', insertErr.message);
         }
 
+        const acervo = await getUserAcervo(authData.user.id);
         return res.json({
           success: true,
-          user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c', token }
+          user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c', token, acervo }
         });
       }
 
+      const acervo = await getUserAcervo(user.id);
       return res.json({
         success: true,
-        user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c', token }
+        user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c', token, acervo }
       });
     } catch (err) {
       console.error('Erro no login Supabase:', err.message);
@@ -319,9 +348,10 @@ app.post('/api/login', async (req, res) => {
     if (!user || user.password_hash !== passwordHash) {
       return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
     }
+    const acervo = await getUserAcervo(user.id);
     return res.json({
       success: true,
-      user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c' }
+      user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c', acervo }
     });
   } catch (err) {
     console.error('Erro no login SQLite:', err);
