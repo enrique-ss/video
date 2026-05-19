@@ -1040,29 +1040,21 @@ io.on('connection', (socket) => {
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {
       try {
-        let client = supabase;
-        if (!process.env.SUPABASE_SERVICE_ROLE_KEY && user.token) {
-          client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
-            global: {
-              headers: {
-                Authorization: `Bearer ${user.token}`
-              }
-            }
-          });
-        }
-        
-        const { error } = await client
+        // Sempre usa o cliente com service role key quando disponível (contorna RLS sem depender de políticas)
+        // Usa UPDATE (não upsert) porque o usuário sempre existe no banco ao fazer updateProfile
+        const { error } = await supabase
           .from('users')
-          .upsert({ 
-            id: user.id, 
-            name: user.name, 
-            avatar: user.avatar, 
-            bg_color: user.bg_color,
-            created_at: new Date().toISOString()
-          });
+          .update({
+            name: user.name,
+            avatar: user.avatar,
+            bg_color: user.bg_color
+          })
+          .eq('id', user.id);
         
         if (error) {
-          console.error('Erro de banco ao atualizar/salvar perfil no Supabase:', error.message || error);
+          console.error('Erro de banco ao atualizar perfil no Supabase:', error.message || error);
+        } else {
+          console.log(`Perfil do usuário ${user.id} salvo no Supabase: avatar=${user.avatar ? '[presente]' : 'null'}, bg=${user.bg_color}`);
         }
       } catch (err) {
         console.error('Erro inesperado ao atualizar perfil no Supabase:', err.message);

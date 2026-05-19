@@ -251,8 +251,19 @@ btnSubmitLogin.addEventListener('click', async () => {
 
 // --- RECONNECT & SESSION SYNC ---
 socket.on('connect', () => {
-    // Se o usuário já estiver logado/registrado em memória, garante que o server saiba seu novo socket.id
+    // Reconexão: reenvia os dados do usuário ao servidor (que pode ter reiniciado com memória zerada)
+    // Lê sempre do localStorage para garantir que avatar/bg_color mais recentes sejam enviados
     if (myUser && myUser.id) {
+        const savedRaw = localStorage.getItem('cinema_das_guria_user');
+        if (savedRaw) {
+            try {
+                const savedData = JSON.parse(savedRaw);
+                // Mescla: preserva token/acervo da sessão atual, mas restaura avatar/bg_color do localStorage
+                myUser.avatar = savedData.avatar || myUser.avatar || null;
+                myUser.bg_color = savedData.bg_color || myUser.bg_color || '#0a0a0c';
+                myUser.token = savedData.token || myUser.token || null;
+            } catch(e) {}
+        }
         socket.emit('join', myUser);
     }
 });
@@ -563,13 +574,21 @@ socket.on('syncState', (state) => {
         myUser.isHost = serverMe.isHost;
         myUser.color = serverMe.color;
         myUser.name = serverMe.name;
-        myUser.avatar = serverMe.avatar || null;
-        if (serverMe.bg_color) {
-            myUser.bg_color = serverMe.bg_color;
-            document.documentElement.style.setProperty('--bg-dark', myUser.bg_color);
-            localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
-            localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+
+        // CORREÇÃO CRÍTICA: O servidor guarda dados em memória volátil (some ao reiniciar/deploy).
+        // Só sobrescrevemos avatar/bg_color se o servidor tiver um valor NÃO-NULO.
+        // O dado local (localStorage/login) é sempre a fonte de verdade.
+        if (serverMe.avatar) {
+            myUser.avatar = serverMe.avatar;
         }
+        if (serverMe.bg_color && serverMe.bg_color !== '#0a0a0c') {
+            myUser.bg_color = serverMe.bg_color;
+        }
+
+        // Aplica o bg_color atual (local ou do servidor) à página
+        document.documentElement.style.setProperty('--bg-dark', myUser.bg_color || '#0a0a0c');
+        localStorage.setItem('cinema_das_guria_bg', myUser.bg_color || '#0a0a0c');
+        localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
         updateCurrentUserTag();
     }
 
