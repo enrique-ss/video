@@ -947,7 +947,12 @@ function extractYoutubeId(url) {
 async function getAcervo() {
     if (!myUser || !myUser.id) return [];
     try {
-        const res = await fetch(`/api/acervo?user_id=${myUser.id}`);
+        const res = await fetch(`/api/acervo?user_id=${myUser.id}&_=${Date.now()}`);
+        if (!res.ok) {
+            const errData = await res.json();
+            console.error('Erro de API ao buscar acervo:', errData.error);
+            return [];
+        }
         const data = await res.json();
         return data.list || [];
     } catch(err) {
@@ -959,26 +964,36 @@ async function getAcervo() {
 async function addAcervoItem(url, title, thumbnail) {
     if (!myUser || !myUser.id) return;
     try {
-        await fetch('/api/acervo', {
+        const res = await fetch('/api/acervo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: myUser.id, url, title, thumbnail })
         });
+        if (!res.ok) {
+            const errData = await res.json();
+            alert('Erro ao salvar no acervo: ' + (errData.error || 'Erro desconhecido'));
+        }
     } catch(err) {
         console.error('Erro ao salvar no acervo:', err);
+        alert('Erro de conexão ao salvar no acervo.');
     }
 }
 
 async function deleteAcervoItem(url) {
     if (!myUser || !myUser.id) return;
     try {
-        await fetch('/api/acervo', {
+        const res = await fetch('/api/acervo', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: myUser.id, url })
         });
+        if (!res.ok) {
+            const errData = await res.json();
+            alert('Erro ao deletar do acervo: ' + (errData.error || 'Erro desconhecido'));
+        }
     } catch(err) {
         console.error('Erro ao deletar do acervo:', err);
+        alert('Erro de conexão ao deletar do acervo.');
     }
 }
 
