@@ -583,6 +583,7 @@ socket.on('syncState', (state) => {
         votingOverlay.classList.remove('hidden');
     } else {
         votingOverlay.classList.add('hidden');
+        chatMessages.classList.remove('silent'); // Garante que o blur seja removido ao sair do estado de votação
     }
 
     if (state.status === 'PODIUM') {
@@ -723,14 +724,15 @@ socket.on('startVoting', ({ timer, authorId, options }) => {
     votingOptions.innerHTML = '';
     votingStatus.innerText = 'Aguardando palpites...';
 
-    // Blur chat log stream
-    chatMessages.classList.add('silent');
-
-    // Block video owner from voting
+    // Block video owner from voting (don't blur chat for them)
     if (myUser.id === authorId) {
         votingStatus.innerHTML = '<strong style="color: #ff0050; font-size:0.75rem;">Você enviou este vídeo! Aguardando o palpite dos amigos... 🤫</strong>';
+        chatMessages.classList.remove('silent');
         return;
     }
+
+    // Blur chat log stream for voters
+    chatMessages.classList.add('silent');
 
     // Draw choices buttons
     options.forEach(opt => {
