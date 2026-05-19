@@ -984,7 +984,7 @@ async function getAcervo() {
     }
 }
 
-async function addAcervoItem(url, title, thumbnail) {
+async function addAcervoItem(url) {
     if (!myUser || !myUser.id) return;
     try {
         const headers = { 'Content-Type': 'application/json' };
@@ -994,7 +994,7 @@ async function addAcervoItem(url, title, thumbnail) {
         const res = await fetch('/api/acervo', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ user_id: myUser.id, url, title, thumbnail })
+            body: JSON.stringify({ user_id: myUser.id, url })
         });
         if (!res.ok) {
             const errData = await res.json();
@@ -1131,38 +1131,8 @@ if (saveAcervoBtn) {
             saveAcervoBtn.innerText = '...';
             saveAcervoBtn.disabled = true;
 
-            // Fallback padrão
-            let title = 'Vídeo (' + new URL(url).hostname + ')';
-            const ytId = extractYoutubeId(url);
-            let thumbnail = ytId
-                ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`
-                : `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%231e1e24"/><stop offset="100%" stop-color="%230f0f12"/></linearGradient></defs><rect width="120" height="90" rx="10" fill="url(%23g)"/><polygon points="50,35 75,45 50,55" fill="%2300f2ea"/></svg>`;
-
-            if (ytId) {
-                title = 'Vídeo do YouTube';
-            } else {
-                try {
-                    const parsed = new URL(url);
-                    const parts = parsed.pathname.split('/');
-                    const filename = parts[parts.length - 1];
-                    if (filename) title = decodeURIComponent(filename);
-                } catch(e) {}
-            }
-
-            // Tenta obter oEmbed CORS-free com noembed
-            try {
-                const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.title) title = data.title;
-                    if (data.thumbnail_url) thumbnail = data.thumbnail_url;
-                }
-            } catch(err) {
-                console.log('Sem oEmbed, usando fallbacks locais:', err);
-            }
-
-            // Salvar no banco do usuário
-            await addAcervoItem(url, title, thumbnail);
+            // Salvar no banco do usuário (o backend resolve o título e a miniatura de forma segura e livre de CORS!)
+            await addAcervoItem(url);
 
             acervoInput.value = '';
             saveAcervoBtn.innerText = 'Salvar';

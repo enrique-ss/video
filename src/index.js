@@ -57,36 +57,6 @@ const supabase = supabaseEnabled
   ? createClient(process.env.SUPABASE_URL, supabaseKey)
   : null;
 
-function getSupabaseClient(req) {
-  if (!supabaseEnabled) return null;
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    return createClient(process.env.SUPABASE_URL, supabaseKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    });
-  }
-  return supabase;
-}
-
-function getSupabaseSocketClient(token) {
-  if (!supabaseEnabled) return null;
-  if (token) {
-    return createClient(process.env.SUPABASE_URL, supabaseKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    });
-  }
-  return supabase;
-}
-
 // 15 Cores exclusivas e vibrantes para os usuários (garante alta visibilidade em ambos os temas)
 const PREDEFINED_COLORS = [
   '#ff0050', // Rosa Neon
@@ -452,12 +422,15 @@ app.get('/api/acervo', async (req, res) => {
 
 // Adicionar vídeo ao acervo do usuário
 app.post('/api/acervo', async (req, res) => {
-  const { user_id, url, title, thumbnail } = req.body;
-  if (!user_id || !url || !title || !thumbnail) {
-    return res.status(400).json({ error: 'Dados incompletos!' });
+  const { user_id, url } = req.body;
+  if (!user_id || !url) {
+    return res.status(400).json({ error: 'Dados incompletos! Envie user_id e url.' });
   }
 
   const cleanedUrl = extractRealUrl(url);
+
+  // Resolve metadata (CORS-free, server-side!)
+  const { title, thumbnail } = await resolveVideoMetadata(cleanedUrl);
 
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
@@ -618,6 +591,68 @@ function extractRealUrl(urlString) {
   } catch (e) {
   }
   return urlString;
+}
+
+function extractYoutubeId(url) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+
+async function resolveVideoMetadata(url) {
+  const ytId = extractYoutubeId(url);
+  let title = 'Vídeo (' + new URL(url).hostname + ')';
+  let thumbnail = '';
+
+  if (ytId) {
+    title = 'Vídeo do YouTube';
+    thumbnail = `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`;
+    
+    // Tenta obter oEmbed oficial do YouTube
+    try {
+      const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+      const response = await axios.get(oembedUrl, { timeout: 3000 });
+      if (response.data) {
+        if (response.data.title) title = response.data.title;
+        if (response.data.thumbnail_url) thumbnail = response.data.thumbnail_url;
+      }
+    } catch (e) {
+      console.log('Erro ao buscar oEmbed YouTube, usando fallback local:', e.message);
+    }
+  } else if (url.includes('tiktok.com')) {
+    title = 'Vídeo do TikTok';
+    thumbnail = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90' viewBox='0 0 120 90'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%231e1e24'/><stop offset='100%' stop-color='%230f0f12'/></linearGradient></defs><rect width='120' height='90' rx='10' fill='url(%23g)'/><polygon points='50,35 75,45 50,55' fill='%23ff0050'/></svg>`;
+
+    try {
+      // Resolve links curtos do TikTok primeiro
+      const resolvedUrl = await resolveUrlRedirects(url);
+      const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(resolvedUrl)}`;
+      const response = await axios.get(oembedUrl, { timeout: 3000 });
+      if (response.data) {
+        if (response.data.title) title = response.data.title;
+        if (response.data.thumbnail_url) thumbnail = response.data.thumbnail_url;
+      }
+    } catch (e) {
+      console.log('Erro ao buscar oEmbed TikTok, usando fallback local:', e.message);
+    }
+  } else {
+    // Links diretos ou genéricos
+    try {
+      const parsed = new URL(url);
+      const parts = parsed.pathname.split('/');
+      const filename = parts.filter(Boolean).pop();
+      if (filename) title = decodeURIComponent(filename);
+    } catch (e) {}
+    
+    thumbnail = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90' viewBox='0 0 120 90'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%231e1e24'/><stop offset='100%' stop-color='%230f0f12'/></linearGradient></defs><rect width='120' height='90' rx='10' fill='url(%23g)'/><polygon points='50,35 75,45 50,55' fill='%2300f2ea'/></svg>`;
+  }
+
+  // Sanitiza aspas duplas no thumbnail
+  if (thumbnail) {
+    thumbnail = thumbnail.replace(/"/g, "'");
+  }
+
+  return { title, thumbnail };
 }
 
 function shuffleArray(array) {
