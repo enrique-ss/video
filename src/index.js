@@ -79,6 +79,7 @@ const PREDEFINED_COLORS = [
 // Máquina de Estados Global - Cinema das Guria (Estilo Gartic Phone)
 let cinemaState = {
   status: 'LOBBY', // LOBBY, PLAYING, VOTING, PODIUM
+  gameMode: 'PALPITAR', // PALPITAR, ASSISTIR
   users: {}, // { userId: User }
   playlist: [], // [Video]
   currentVideo: null, // Video
@@ -112,6 +113,7 @@ function getClientState() {
 
   return {
     status: cinemaState.status,
+    gameMode: cinemaState.gameMode,
     users: Object.values(cinemaState.users),
     playlist: safePlaylist,
     currentVideo: safeCurrentVideo,
@@ -404,12 +406,14 @@ app.post('/api/acervo', (req, res) => {
     return res.status(500).json({ error: 'Banco de dados não configurado!' });
   }
 
+  const cleanedUrl = extractRealUrl(url);
+
   try {
     const insert = offlineDb.prepare(`
       INSERT INTO acervo (user_id, url, title, thumbnail, created_at)
       VALUES (?, ?, ?, ?, ?)
     `);
-    insert.run(user_id, url, title, thumbnail, new Date().toISOString());
+    insert.run(user_id, cleanedUrl, title, thumbnail, new Date().toISOString());
 
     return res.status(201).json({ success: true });
   } catch (err) {
@@ -429,9 +433,11 @@ app.delete('/api/acervo', (req, res) => {
     return res.status(500).json({ error: 'Banco de dados não configurado!' });
   }
 
+  const cleanedUrl = extractRealUrl(url);
+
   try {
     const del = offlineDb.prepare('DELETE FROM acervo WHERE user_id = ? AND url = ?');
-    del.run(user_id, url);
+    del.run(user_id, cleanedUrl);
 
     return res.json({ success: true });
   } catch (err) {
@@ -457,6 +463,67 @@ function extractYoutubeId(url) {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
   const match = url.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
+}
+
+async function resolveUrlRedirects(url, depth = 0) {
+  if (depth > 5) return url;
+  if (!url || typeof url !== 'string') return '';
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
+  
+  const isShortTiktok = url.includes('tiktok.com') && (
+    url.includes('/t/') || 
+    url.includes('vm.tiktok.com') || 
+    url.includes('vt.tiktok.com') || 
+    url.includes('v.tiktok.com')
+  );
+  if (!isShortTiktok) return url;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+      },
+      maxRedirects: 0,
+      validateStatus: (status) => status >= 300 && status < 400,
+      timeout: 4000
+    });
+    const location = response.headers.location;
+    if (location) {
+      const nextUrl = new URL(location, url).toString();
+      return resolveUrlRedirects(nextUrl, depth + 1);
+    }
+  } catch (err) {
+    // Fallback if request fails
+  }
+  return url;
+}
+
+function extractRealUrl(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.hostname.includes('google.com') && parsed.pathname === '/url') {
+      const target = parsed.searchParams.get('url') || parsed.searchParams.get('q');
+      if (target && (target.startsWith('http://') || target.startsWith('https://'))) {
+        return target;
+      }
+    }
+    if (parsed.searchParams.has('url')) {
+      const target = parsed.searchParams.get('url');
+      if (target && (target.startsWith('http://') || target.startsWith('https://'))) {
+        return target;
+      }
+    }
+  } catch (e) {
+  }
+  return urlString;
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
 }
 
 function normalizeUrl(url) {
@@ -522,7 +589,7 @@ io.on('connection', (socket) => {
   });
 
   // Host inicia a partida
-  socket.on('startGame', () => {
+  socket.on('startGame', (data) => {
     const user = Object.values(cinemaState.users).find(u => u.socketId === socket.id);
     if (!user || !user.isHost) return;
 
@@ -530,6 +597,12 @@ io.on('connection', (socket) => {
     if (cinemaState.playlist.length === 0) {
       return socket.emit('errorMsg', 'Adicione pelo menos um vídeo para iniciar o cinema!');
     }
+
+    // Define o modo de jogo
+    cinemaState.gameMode = (data && data.mode === 'ASSISTIR') ? 'ASSISTIR' : 'PALPITAR';
+
+    // Embaralha os vídeos para rodar em ordem aleatória
+    shuffleArray(cinemaState.playlist);
 
     cinemaState.status = 'PLAYING';
     cinemaState.currentVideo = cinemaState.playlist.shift();
@@ -540,9 +613,10 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Adição de vídeos à Fila (LOBBY apenas, limite de 5 vídeos por usuário)
-  socket.on('addVideo', (url) => {
-    if (cinemaState.status !== 'LOBBY') {
+  // Adição de vídeos à Fila (LOBBY ou PLAYING no modo ASSISTIR)
+  socket.on('addVideo', async (url) => {
+    const isAssistirPlaying = cinemaState.status === 'PLAYING' && cinemaState.gameMode === 'ASSISTIR';
+    if (cinemaState.status !== 'LOBBY' && !isAssistirPlaying) {
       return socket.emit('errorMsg', 'O jogo já começou! Novos vídeos são bloqueados.');
     }
 
@@ -555,7 +629,9 @@ io.on('connection', (socket) => {
       return socket.emit('errorMsg', 'Você já adicionou o limite máximo de 5 vídeos!');
     }
 
-    const normalizedUrl = normalizeUrl(url);
+    const cleanedUrl = extractRealUrl(url);
+    const resolvedUrl = await resolveUrlRedirects(cleanedUrl);
+    const normalizedUrl = normalizeUrl(resolvedUrl);
 
     // Validar se o link é duplicado (compara formatos normalizados de todos os vídeos da fila)
     const isDuplicate = cinemaState.playlist.some(v => normalizeUrl(v.url) === normalizedUrl);
@@ -588,7 +664,35 @@ io.on('connection', (socket) => {
     }
 
     if (cinemaState.status === 'PLAYING' && cinemaState.currentVideo) {
-      startVoting();
+      if (cinemaState.gameMode === 'ASSISTIR') {
+        cinemaState.currentVideo.played = true;
+
+        if (cinemaState.playlist.length > 0) {
+          cinemaState.status = 'PLAYING';
+          cinemaState.currentVideo = cinemaState.playlist.shift();
+
+          io.emit('playVideo', {
+            currentVideo: { id: cinemaState.currentVideo.id, url: cinemaState.currentVideo.url }
+          });
+          io.emit('stateChange', getClientState());
+        } else {
+          // Fila encerrada -> Retorna ao Lobby
+          cinemaState.status = 'LOBBY';
+          cinemaState.currentVideo = null;
+          cinemaState.playlist = [];
+          cinemaState.videoAuthorsInRound.clear();
+
+          io.emit('newMessage', {
+            user: 'Sistema',
+            color: '#ff0050',
+            text: 'Fila de reprodução finalizada! Retornando ao Lobby.',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+          io.emit('stateChange', getClientState());
+        }
+      } else {
+        startVoting();
+      }
     }
   });
 
@@ -702,6 +806,7 @@ io.on('connection', (socket) => {
 
     // Limpar estados
     cinemaState.status = 'LOBBY';
+    cinemaState.gameMode = 'PALPITAR';
     cinemaState.playlist = [];
     cinemaState.currentVideo = null;
     cinemaState.videoAuthorsInRound.clear();

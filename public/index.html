@@ -91,6 +91,8 @@
                 </div>
             </div>
 
+            <!-- Resizer Handle -->
+            <div id="resizer-handle" class="resizer-handle"></div>
 
             <!-- Live Chat and Game Stats (Bottom Area) -->
             <div class="chat-viewport solid-card">
@@ -255,6 +257,19 @@
                 
                 <!-- Salvar Alterações -->
                 <button id="save-profile-btn" class="use-acervo-btn" style="margin-top: 6px; width: 100%; height: 32px; background: var(--accent-cyan); color: #000; border-radius: 6px; border: none; font-weight: 700; cursor: pointer; font-size: 0.75rem;">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Mode Selection Modal (Ultra-Minimalist Popover) -->
+    <div id="game-mode-modal" class="overlay hidden">
+        <div id="game-mode-modal-card" class="glass-card options-popover-card" style="width: 180px; padding: 12px; display: flex; flex-direction: column; gap: 8px; text-align: center; border-radius: 14px;">
+            <div class="options-menu-container" style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                <button id="mode-palpitar-btn" class="minimal-menu-btn">Modo Palpitar</button>
+                <button id="mode-assistir-btn" class="minimal-menu-btn">Assistir Juntos</button>
+                <div class="author-footer" style="position: static; margin-top: 10px;">
+                    feito por <a href="https://instagram.com/enrique.json" target="_blank" class="insta-text">@enrique.json</a>
+                </div>
             </div>
         </div>
     </div>

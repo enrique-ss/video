@@ -629,7 +629,7 @@ button#btn-submit-login, button#btn-submit-register, button#join-btn, .glow-btn 
 }
 
 /* --- ESTILOS DO POPUP ULTRA-MINIMALISTA --- */
-#options-modal.overlay {
+#options-modal.overlay, #game-mode-modal.overlay {
     background: rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
@@ -737,6 +737,63 @@ button#btn-submit-login, button#btn-submit-register, button#join-btn, .glow-btn 
 #open-acervo-btn.minimal-menu-btn:active {
     transform: scale(0.97) !important;
 }
+
+/* --- OVERRIDE ESTILO DO BOTÃO MODO PALPITAR --- */
+#mode-palpitar-btn.minimal-menu-btn {
+    background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    box-shadow: 0 0 10px rgba(0, 114, 255, 0.2);
+}
+
+#mode-palpitar-btn.minimal-menu-btn:hover {
+    box-shadow: 0 0 15px rgba(0, 114, 255, 0.45) !important;
+    filter: brightness(1.08) !important;
+    transform: scale(1.02) !important;
+}
+
+#mode-palpitar-btn.minimal-menu-btn:active {
+    transform: scale(0.97) !important;
+}
+
+/* --- ESTILO DO RESIZER-HANDLE DE TELA --- */
+.resizer-handle {
+    height: 8px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    touch-action: none;
+    transition: background 0.2s, border-color 0.2s;
+    margin: 2px 0;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.resizer-handle:hover, .resizer-handle.dragging {
+    background: rgba(0, 242, 234, 0.15);
+    border-color: rgba(0, 242, 234, 0.4);
+}
+
+.resizer-handle::after {
+    content: '';
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    transition: background 0.2s;
+}
+
+.resizer-handle:hover::after, .resizer-handle.dragging::after {
+    background: var(--accent-cyan);
+}
+
 
 /* --- ESTILOS DOS BOTÕES DE AVATAR PRESET --- */
 .preset-avatar-btn {

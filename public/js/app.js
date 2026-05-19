@@ -385,6 +385,29 @@ function renderVideoPlayer(url, isHost) {
             renderGenericIframe(url);
         }
     } 
+    // 2. TikTok
+    else if (url.includes('tiktok.com')) {
+        const match = url.match(/\/video\/(\d+)/) || 
+                      url.match(/\/v\/(\d+)/) || 
+                      url.match(/\/embed\/(\d+)/) || 
+                      url.match(/\/embed\/v2\/(\d+)/) ||
+                      url.match(/\/player\/v1\/(\d+)/);
+        const videoId = match ? match[1] : null;
+
+        if (videoId) {
+            const iframe = document.createElement('iframe');
+            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?music_info=1&description=1`;
+            iframe.width = '100%';
+            iframe.height = '100%';
+            iframe.style.borderRadius = '14px';
+            iframe.style.border = 'none';
+            iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; accelerometer; gyroscope';
+            iframe.allowFullscreen = true;
+            videoWrapper.appendChild(iframe);
+        } else {
+            renderGenericIframe(url);
+        }
+    }
     // 3. Native MP4 Video File
     else if (url.match(/\.(mp4|webm|ogg|mov)(?:$|\?)/i)) {
         const video = document.createElement('video');
@@ -408,7 +431,8 @@ function renderVideoPlayer(url, isHost) {
     // Skip/Trigger Voting button exclusively shown to the Host (TK-02)
     if (isHost) {
         const finishBtn = document.createElement('button');
-        finishBtn.innerText = 'Próximo / Iniciar Votação ➔';
+        const isAssistir = window.currentGameMode === 'ASSISTIR';
+        finishBtn.innerText = isAssistir ? 'Próximo Vídeo ➔' : 'Próximo / Iniciar Votação ➔';
         finishBtn.className = 'finish-video-btn';
         finishBtn.onclick = () => socket.emit('videoEnded');
         videoWrapper.appendChild(finishBtn);
@@ -462,17 +486,50 @@ function renderGenericIframe(url) {
 
 
 // --- HOST START & RESET PARTY COMMANDS ---
-startGameBtn.addEventListener('click', () => {
-    socket.emit('startGame');
-});
+const gameModeModal = document.getElementById('game-mode-modal');
+const modePalpitarBtn = document.getElementById('mode-palpitar-btn');
+const modeAssistirBtn = document.getElementById('mode-assistir-btn');
 
-playAgainBtn.addEventListener('click', () => {
-    socket.emit('resetGame');
-});
+if (startGameBtn) {
+    startGameBtn.addEventListener('click', () => {
+        if (gameModeModal) {
+            gameModeModal.classList.remove('hidden');
+        }
+    });
+}
+
+if (modePalpitarBtn) {
+    modePalpitarBtn.addEventListener('click', () => {
+        socket.emit('startGame', { mode: 'PALPITAR' });
+        if (gameModeModal) gameModeModal.classList.add('hidden');
+    });
+}
+
+if (modeAssistirBtn) {
+    modeAssistirBtn.addEventListener('click', () => {
+        socket.emit('startGame', { mode: 'ASSISTIR' });
+        if (gameModeModal) gameModeModal.classList.add('hidden');
+    });
+}
+
+if (gameModeModal) {
+    gameModeModal.addEventListener('click', (e) => {
+        if (e.target === gameModeModal) {
+            gameModeModal.classList.add('hidden');
+        }
+    });
+}
+
+if (playAgainBtn) {
+    playAgainBtn.addEventListener('click', () => {
+        socket.emit('resetGame');
+    });
+}
 
 // --- STATE MACHINE SYNCING SYSTEM (TK-01) ---
 socket.on('syncState', (state) => {
     // console.log('Sincronização de Estado recebida:', state);
+    window.currentGameMode = state.gameMode || 'PALPITAR';
     
     const serverMe = state.users.find(u => u.id === myUser.id);
     if (serverMe) {
@@ -490,9 +547,10 @@ socket.on('syncState', (state) => {
         startGameBtn.style.display = 'none';
     }
 
-    // Oculta a opção de Acervo quando a partida já começou
+    // Oculta a opção de Acervo quando a partida já começou (exceto no modo ASSISTIR)
     if (openAcervoBtn) {
-        if (state.status === 'LOBBY') {
+        const allowAcervo = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
+        if (allowAcervo) {
             openAcervoBtn.style.display = 'flex';
         } else {
             openAcervoBtn.style.display = 'none';
@@ -503,8 +561,10 @@ socket.on('syncState', (state) => {
         }
     }
 
-    // Block video additions outside lobby and hide it during active game states
-    if (state.status === 'LOBBY') {
+    // Block video additions outside lobby (unless it's 'ASSISTIR' mode while playing) and hide it during active game states
+    const allowVideoAddition = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
+
+    if (allowVideoAddition) {
         tiktokUrlInput.disabled = false;
         addVideoBtn.disabled = false;
         if (headerInputWrapper) headerInputWrapper.style.display = 'flex';
@@ -549,7 +609,8 @@ socket.on('syncState', (state) => {
             if (myUser.isHost) {
                 if (!finishBtn) {
                     finishBtn = document.createElement('button');
-                    finishBtn.innerText = 'Próximo / Iniciar Votação ➔';
+                    const isAssistir = window.currentGameMode === 'ASSISTIR';
+                    finishBtn.innerText = isAssistir ? 'Próximo Vídeo ➔' : 'Próximo / Iniciar Votação ➔';
                     finishBtn.className = 'finish-video-btn';
                     finishBtn.onclick = () => socket.emit('videoEnded');
                     videoWrapper.appendChild(finishBtn);
@@ -1258,3 +1319,66 @@ document.querySelectorAll('.reaction-btn').forEach(btn => {
         }
     });
 });
+
+// --- LOGICA DE REDIMENSIONAMENTO DE TELA ---
+const resizer = document.getElementById('resizer-handle');
+const videoWrapperElement = document.getElementById('video-wrapper');
+
+if (resizer && videoWrapperElement) {
+    let isDragging = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    const startDrag = (e) => {
+        isDragging = true;
+        resizer.classList.add('dragging');
+        startY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+        startHeight = videoWrapperElement.offsetHeight;
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+    };
+
+    const doDrag = (e) => {
+        if (!isDragging) return;
+        if (e.cancelable) e.preventDefault(); // Evita scroll do mobile durante drag
+        const currentY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+        const diffY = currentY - startY;
+        
+        let newHeight = startHeight + diffY;
+        const minHeight = 120; // Altura mínima do player
+        const maxHeight = window.innerHeight * 0.7; // Altura máxima (70% da tela)
+        
+        if (newHeight < minHeight) newHeight = minHeight;
+        if (newHeight > maxHeight) newHeight = maxHeight;
+
+        videoWrapperElement.style.height = `${newHeight}px`;
+    };
+
+    const stopDrag = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        resizer.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        
+        // Salva a altura preferida do usuário para persistência
+        localStorage.setItem('cinema_das_guria_player_height', videoWrapperElement.style.height);
+    };
+
+    // Mouse Events
+    resizer.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('mouseup', stopDrag);
+
+    // Touch Events (Mobile)
+    resizer.addEventListener('touchstart', startDrag, { passive: true });
+    window.addEventListener('touchmove', doDrag, { passive: false });
+    window.addEventListener('touchend', stopDrag);
+
+    // Restaurar tamanho salvo ao inicializar
+    const savedHeight = localStorage.getItem('cinema_das_guria_player_height');
+    if (savedHeight) {
+        videoWrapperElement.style.height = savedHeight;
+    }
+}
+
