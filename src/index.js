@@ -266,23 +266,9 @@ app.post('/api/login', async (req, res) => {
         password: password
       });
 
-      // Se falhar no Auth Oficial, tenta fallback para contas criadas antes desta atualização
+      // Se falhar no Auth Oficial, retorna erro imediatamente
       if (authError) {
-        const { data: legacyUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', email.toLowerCase())
-          .maybeSingle();
-
-        if (!legacyUser || legacyUser.password_hash !== passwordHash) {
-          return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
-        }
-        
-        // Login com conta legada aprovado
-        return res.json({
-          success: true,
-          user: { id: legacyUser.id, name: legacyUser.name, email: legacyUser.email, avatar: legacyUser.avatar || null, bg_color: legacyUser.bg_color || '#0a0a0c' }
-        });
+        return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
       }
 
       // 2. Login Auth oficial aprovado -> buscar dados públicos da conta
@@ -654,22 +640,12 @@ io.on('connection', (socket) => {
             return;
           }
         } else {
-          // Fallback seguro para contas legadas sem JWT armazenado no cliente
-          const { data: dbUser, error } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', userData.id)
-            .maybeSingle();
-
-          // Apenas desloga se a consulta tiver sucesso E retornar nulo (confirmando exclusão),
-          // evitando falsos-positivos causados por políticas de RLS bloqueando a leitura.
-          if (!error && !dbUser) {
-            console.log(`Usuário legado não encontrado na tabela pública: ${userData.id}. Forçando deslogar.`);
-            socket.emit('forceLogout', 'Sua conta não existe mais ou foi excluída. Você foi deslogado.');
-            delete cinemaState.users[userData.id];
-            io.emit('updateUsers', Object.values(cinemaState.users));
-            return;
-          }
+          // Se não tiver token no modo online, é forçado a deslogar imediatamente (sem contas legadas)
+          console.log(`Usuário conectado sem token JWT no modo online: ${userData.id}. Forçando deslogar.`);
+          socket.emit('forceLogout', 'Sua sessão é inválida ou expirou. Por favor, faça login novamente.');
+          delete cinemaState.users[userData.id];
+          io.emit('updateUsers', Object.values(cinemaState.users));
+          return;
         }
       } catch (err) {
         console.error('Erro ao verificar existência de usuário no Supabase:', err.message);
