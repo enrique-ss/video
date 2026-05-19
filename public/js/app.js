@@ -285,11 +285,11 @@ if (savedUser) {
         completeLogin(myUser.name, myUser.id, myUser.avatar, myUser.color, myUser.bg_color);
     } catch (err) {
         console.error('Falha ao restaurar sessão de usuário:', err);
-        loginOverlay.classList.remove('hidden');
+        if (loginOverlay) loginOverlay.classList.remove('hidden');
         switchToTab('login');
     }
 } else {
-    loginOverlay.classList.remove('hidden');
+    if (loginOverlay) loginOverlay.classList.remove('hidden');
     switchToTab('login');
 }
 
@@ -774,10 +774,23 @@ socket.on('startVoting', ({ timer, authorId, options }) => {
 
 // Sync countdown timer tick
 socket.on('votingTick', (time) => {
-    const timerFill = document.querySelector('.timer-fill');
+    const timerFill = document.getElementById('voting-timer-fill');
     if (timerFill) {
         const percentage = (time / 15) * 100;
         timerFill.style.width = percentage + '%';
+    }
+});
+
+// Sync podium countdown timer tick
+socket.on('podiumTick', (time) => {
+    const timerFill = document.getElementById('podium-timer-fill');
+    if (timerFill) {
+        const percentage = (time / 15) * 100;
+        timerFill.style.width = percentage + '%';
+    }
+    const statusText = document.getElementById('podium-timer-status');
+    if (statusText) {
+        statusText.innerText = `Retornando ao lobby em ${time}s...`;
     }
 });
 
@@ -1012,14 +1025,11 @@ async function renderAcervo() {
         div.style.width = '100%';
         
         div.innerHTML = `
-            <div class="acervo-item" style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 10px; padding: 6px; width: 100%; box-sizing: border-box; margin-bottom: 6px;">
-                <img src="${item.thumbnail}" style="width: 54px; height: 36px; border-radius: 6px; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.05);" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22 viewBox=%220 0 120 90%22><defs><linearGradient id=%22g%22 x1=%220%25%22 y1=%220%25%22 x2=%22100%25%22 y2=%22100%25%22><stop offset=%220%25%22 stop-color=%22%231e1e24%22/><stop offset=%22100%25%22 stop-color=%22%230f0f12%22/></linearGradient></defs><rect width=%22120%22 height=%2290%22 rx=%2210%22 fill=%22url(%23g)%22/><polygon points=%2250,35 75,45 50,55%22 fill=%22%2300f2ea%22/></svg>'">
-                <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0; gap: 4px; text-align: left;">
-                    <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${item.title}">${item.title}</span>
-                    <div style="display: flex; gap: 4px;">
-                        <button class="use-acervo-btn" data-url="${item.url}" style="background: var(--accent-cyan); color: #000; border: none; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease;">Fila</button>
-                        <button class="delete-acervo-btn" data-url="${item.url}" style="background: rgba(255,0,0,0.1); color: var(--accent-pink); border: 1px solid rgba(255,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; cursor: pointer; transition: transform 0.1s ease;">🗑️</button>
-                    </div>
+            <div class="acervo-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.015); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; width: 100%; box-sizing: border-box; margin-bottom: 4px; gap: 8px; transition: background 0.2s ease;">
+                <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; flex-grow: 1; text-align: left;" title="${item.title}">${item.title}</span>
+                <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                    <button class="use-acervo-btn" data-url="${item.url}" style="background: var(--accent-cyan); color: #000; border: none; padding: 2px 6px; border-radius: 4px; font-size: 0.62rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease;">Fila</button>
+                    <button class="delete-acervo-btn" data-url="${item.url}" style="background: rgba(255,0,0,0.1); color: var(--accent-pink); border: 1px solid rgba(255,0,0,0.1); padding: 2px 4px; border-radius: 4px; font-size: 0.62rem; cursor: pointer; transition: transform 0.1s ease;">🗑️</button>
                 </div>
             </div>
         `;

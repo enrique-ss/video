@@ -95,6 +95,7 @@ let cinemaState = {
 };
 
 let votingInterval = null;
+let podiumInterval = null;
 
 // Função auxiliar para expurgar dados sensíveis antes de emitir para o cliente
 function getClientState() {
@@ -145,11 +146,6 @@ function saveRankingToDb(sortedRank) {
   if (!offlineDb) return;
   try {
     const createdAt = new Date().toISOString();
-    const insertHistory = offlineDb.prepare(`
-      INSERT INTO history (id, room_id, video_url, added_by_user_id, added_at)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
     const insertUser = offlineDb.prepare(`
       INSERT OR IGNORE INTO users (id, name, email, password_hash, created_at)
       VALUES (?, ?, ?, ?, ?)
@@ -612,19 +608,20 @@ function normalizeUrl(url) {
 
 // Socket.io Logic - TikTok Cinema
 io.on('connection', (socket) => {
-  // Limitação de Conexão - Máximo 15 usuários
-  const activeUserCount = Object.keys(cinemaState.users).length;
-  if (activeUserCount >= 15) {
-    socket.emit('errorMsg', 'A sala está cheia (máximo de 15 usuários)!');
-    socket.disconnect(true);
-    return;
-  }
-
   console.log('User conectado no socket:', socket.id);
 
   // Registro/Join do Usuário
   socket.on('join', async (userData) => {
     if (!userData || !userData.id) return;
+
+    // Limitação de Conexão - Máximo 15 usuários (permite reconexões de usuários já ativos)
+    const userExists = Object.values(cinemaState.users).some(u => u.id === userData.id);
+    const activeUserCount = Object.keys(cinemaState.users).length;
+    if (!userExists && activeUserCount >= 15) {
+      socket.emit('errorMsg', 'A sala está cheia (máximo de 15 usuários)!');
+      socket.disconnect(true);
+      return;
+    }
 
     // Verificar se o usuário ainda existe no banco de dados (Supabase/SQLite)
     if (supabaseEnabled && supabase) {
@@ -934,27 +931,7 @@ io.on('connection', (socket) => {
 
     if (cinemaState.status !== 'PODIUM') return;
 
-    // Limpar estados
-    cinemaState.status = 'LOBBY';
-    cinemaState.gameMode = 'PALPITAR';
-    cinemaState.playlist = [];
-    cinemaState.currentVideo = null;
-    cinemaState.videoAuthorsInRound.clear();
-    cinemaState.chatHistory = [];
-    cinemaState.voting = {
-      active: false,
-      timer: 15,
-      votesTrack: {},
-      correctUserId: null
-    };
-
-    // Zerar pontuação de todos
-    Object.keys(cinemaState.scores).forEach(userId => {
-      cinemaState.scores[userId] = 0;
-    });
-
-    io.emit('gameReset');
-    io.emit('stateChange', getClientState());
+    autoResetGame();
   });
 
   // Desconexão do Socket
@@ -990,6 +967,36 @@ io.on('connection', (socket) => {
       io.emit('stateChange', getClientState());
     }
   });
+
+  // Função interna para restaurar jogo ao lobby automaticamente
+  function autoResetGame() {
+    if (podiumInterval) {
+      clearInterval(podiumInterval);
+      podiumInterval = null;
+    }
+
+    // Limpar estados
+    cinemaState.status = 'LOBBY';
+    cinemaState.gameMode = 'PALPITAR';
+    cinemaState.playlist = [];
+    cinemaState.currentVideo = null;
+    cinemaState.videoAuthorsInRound.clear();
+    cinemaState.chatHistory = [];
+    cinemaState.voting = {
+      active: false,
+      timer: 15,
+      votesTrack: {},
+      correctUserId: null
+    };
+
+    // Zerar pontuação de todos
+    Object.keys(cinemaState.scores).forEach(userId => {
+      cinemaState.scores[userId] = 0;
+    });
+
+    io.emit('gameReset');
+    io.emit('stateChange', getClientState());
+  }
 
   // Função interna para iniciar cronômetro e fase de votação
   function startVoting() {
@@ -1079,6 +1086,22 @@ io.on('connection', (socket) => {
 
       io.emit('gameFinished', sortedRanking);
       io.emit('stateChange', getClientState());
+
+      // Iniciar contagem regressiva de 15 segundos para sair automaticamente do pódio e resetar para o Lobby
+      let podiumTimer = 15;
+      io.emit('podiumTick', podiumTimer);
+
+      if (podiumInterval) clearInterval(podiumInterval);
+      podiumInterval = setInterval(() => {
+        podiumTimer--;
+        io.emit('podiumTick', podiumTimer);
+
+        if (podiumTimer <= 0) {
+          clearInterval(podiumInterval);
+          podiumInterval = null;
+          autoResetGame();
+        }
+      }, 1000);
     }
   }
 
@@ -1098,14 +1121,12 @@ io.on('connection', (socket) => {
       cinemaState.users[voterId] && voterId !== authorId
     ).length;
 
-    if (eligibleCount === 0 || votesCount >= eligibleCount) {
-      endVoting();
-    } else {
-      io.emit('votingProgress', {
-        votesReceived: votesCount,
-        totalUsers: eligibleCount
-      });
-    }
+    // A votação sempre dura os 15 segundos inteiros para criar suspense e sincronia,
+    // apenas atualizamos o progresso de votos recebidos na tela dos usuários.
+    io.emit('votingProgress', {
+      votesReceived: votesCount,
+      totalUsers: eligibleCount
+    });
   }
 });
 
