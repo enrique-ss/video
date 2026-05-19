@@ -212,7 +212,7 @@ btnSubmitRegister.addEventListener('click', async () => {
         if (data.error) {
             alert(data.error);
         } else if (data.success) {
-            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color);
+            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color, data.user.token);
         }
     } catch (err) {
         console.error(err);
@@ -241,7 +241,7 @@ btnSubmitLogin.addEventListener('click', async () => {
         if (data.error) {
             alert(data.error);
         } else if (data.success) {
-            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color);
+            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color, data.user.token);
         }
     } catch (err) {
         console.error(err);
@@ -311,7 +311,7 @@ if (currentUserTag) {
     });
 }
 
-function completeLogin(name, id, avatar, color, bg_color) {
+function completeLogin(name, id, avatar, color, bg_color, token) {
     myUser.name = name;
     if (id) {
         myUser.id = id;
@@ -323,6 +323,9 @@ function completeLogin(name, id, avatar, color, bg_color) {
         myUser.color = '#' + Math.floor(Math.random()*16777215).toString(16);
     }
     myUser.bg_color = bg_color || '#0a0a0c';
+    if (token) {
+        myUser.token = token;
+    }
 
     localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
     

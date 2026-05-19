@@ -212,10 +212,12 @@ app.post('/api/register', async (req, res) => {
         // Se der erro ao salvar os dados públicos, avisamos mas a conta Auth já existe
       }
 
+      const token = authData.session ? authData.session.access_token : null;
+
       console.log(`Novo usuário registrado via Supabase Auth: ${name} (${email.toLowerCase()})`);
       return res.status(201).json({
         success: true,
-        user: { id: finalUserId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
+        user: { id: finalUserId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c', token }
       });
     } catch (err) {
       console.error('Erro inesperado no registro Supabase:', err.message);
@@ -290,6 +292,8 @@ app.post('/api/login', async (req, res) => {
         .eq('id', authData.user.id)
         .maybeSingle();
 
+      const token = authData.session ? authData.session.access_token : null;
+
       if (!user) {
         // Fallback caso a tabela users não tenha o registro (sync error no momento da criação)
         // Garante a auto-criação na tabela pública para permitir que edições e fotos funcionem perfeitamente!
@@ -312,13 +316,13 @@ app.post('/api/login', async (req, res) => {
 
         return res.json({
           success: true,
-          user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c' }
+          user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c', token }
         });
       }
 
       return res.json({
         success: true,
-        user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c' }
+        user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c', token }
       });
     } catch (err) {
       console.error('Erro no login Supabase:', err.message);
@@ -639,19 +643,33 @@ io.on('connection', (socket) => {
     // Verificar se o usuário ainda existe no banco de dados (Supabase/SQLite)
     if (supabaseEnabled && supabase) {
       try {
-        const { data: dbUser, error } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', userData.id)
-          .maybeSingle();
+        if (userData.token) {
+          // Validação oficial e segura via JWT nativo do Supabase Auth (independente de RLS)
+          const { data: authUser, error: authError } = await supabase.auth.getUser(userData.token);
+          if (authError || !authUser || !authUser.user) {
+            console.log(`Token JWT inválido ou expirado para o usuário ${userData.id}. Forçando deslogar.`);
+            socket.emit('forceLogout', 'Sua sessão expirou ou sua conta foi removida do Supabase. Você foi deslogado.');
+            delete cinemaState.users[userData.id];
+            io.emit('updateUsers', Object.values(cinemaState.users));
+            return;
+          }
+        } else {
+          // Fallback seguro para contas legadas sem JWT armazenado no cliente
+          const { data: dbUser, error } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', userData.id)
+            .maybeSingle();
 
-        if (error || !dbUser) {
-          console.log(`Usuário não encontrado ou deletado no Supabase: ${userData.id}. Forçando deslogar.`);
-          socket.emit('forceLogout', 'Sua conta não existe mais ou foi excluída. Você foi deslogado.');
-          // Remove da lista de usuários ativos caso estivesse lá
-          delete cinemaState.users[userData.id];
-          io.emit('updateUsers', Object.values(cinemaState.users));
-          return;
+          // Apenas desloga se a consulta tiver sucesso E retornar nulo (confirmando exclusão),
+          // evitando falsos-positivos causados por políticas de RLS bloqueando a leitura.
+          if (!error && !dbUser) {
+            console.log(`Usuário legado não encontrado na tabela pública: ${userData.id}. Forçando deslogar.`);
+            socket.emit('forceLogout', 'Sua conta não existe mais ou foi excluída. Você foi deslogado.');
+            delete cinemaState.users[userData.id];
+            io.emit('updateUsers', Object.values(cinemaState.users));
+            return;
+          }
         }
       } catch (err) {
         console.error('Erro ao verificar existência de usuário no Supabase:', err.message);
