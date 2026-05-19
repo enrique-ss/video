@@ -529,6 +529,8 @@ socket.on('syncState', (state) => {
         resultsOverlay.classList.remove('hidden');
         if (myUser.isHost) {
             playAgainBtn.style.display = 'block';
+        } else {
+            playAgainBtn.style.display = 'none';
         }
     } else {
         resultsOverlay.classList.add('hidden');
@@ -540,6 +542,23 @@ socket.on('syncState', (state) => {
         if (window.currentRenderedVideoUrl !== state.currentVideo.url) {
             window.currentRenderedVideoUrl = state.currentVideo.url;
             renderVideoPlayer(state.currentVideo.url, myUser.isHost);
+        } else {
+            // Se o vídeo já estiver sendo renderizado, garante que o botão do host esteja sincronizado
+            // caso a liderança (host) tenha mudado sem que o vídeo trocasse.
+            let finishBtn = videoWrapper.querySelector('.finish-video-btn');
+            if (myUser.isHost) {
+                if (!finishBtn) {
+                    finishBtn = document.createElement('button');
+                    finishBtn.innerText = 'Próximo / Iniciar Votação ➔';
+                    finishBtn.className = 'finish-video-btn';
+                    finishBtn.onclick = () => socket.emit('videoEnded');
+                    videoWrapper.appendChild(finishBtn);
+                }
+            } else {
+                if (finishBtn) {
+                    finishBtn.remove();
+                }
+            }
         }
     } else {
         window.currentRenderedVideoUrl = null; // Reseta estado do player quando não estiver tocando
