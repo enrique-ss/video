@@ -391,15 +391,36 @@ app.get('/api/gifs', async (req, res) => {
   }
 });
 
-// --- ENDPOINTS DO ACERVO DE VÍDEOS (SQLite) ---
+// --- ENDPOINTS DO ACERVO DE VÍDEOS (SQLite / Supabase) ---
 
 // Obter acervo do usuário
-app.get('/api/acervo', (req, res) => {
+app.get('/api/acervo', async (req, res) => {
   const { user_id } = req.query;
   if (!user_id) {
     return res.status(400).json({ error: 'Parâmetro user_id obrigatório!' });
   }
 
+  // Modo Online: Supabase
+  if (supabaseEnabled && supabase) {
+    try {
+      const { data: list, error } = await supabase
+        .from('acervo')
+        .select('*')
+        .eq('user_id', user_id)
+        .order('id', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar acervo Supabase:', error.message || error);
+        return res.status(500).json({ error: 'Erro ao buscar no Supabase: ' + (error.message || error) });
+      }
+      return res.json({ success: true, list: list || [] });
+    } catch (err) {
+      console.error('Exceção ao buscar acervo Supabase:', err.message);
+      return res.status(500).json({ error: 'Falha interna ao buscar acervo.' });
+    }
+  }
+
+  // Modo Offline: SQLite
   if (!offlineDb) {
     return res.status(500).json({ error: 'Banco de dados não configurado!' });
   }
@@ -414,17 +435,42 @@ app.get('/api/acervo', (req, res) => {
 });
 
 // Adicionar vídeo ao acervo do usuário
-app.post('/api/acervo', (req, res) => {
+app.post('/api/acervo', async (req, res) => {
   const { user_id, url, title, thumbnail } = req.body;
   if (!user_id || !url || !title || !thumbnail) {
     return res.status(400).json({ error: 'Dados incompletos!' });
   }
 
+  const cleanedUrl = extractRealUrl(url);
+
+  // Modo Online: Supabase
+  if (supabaseEnabled && supabase) {
+    try {
+      const { error } = await supabase
+        .from('acervo')
+        .insert({
+          user_id,
+          url: cleanedUrl,
+          title,
+          thumbnail,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Erro ao salvar acervo Supabase:', error.message || error);
+        return res.status(500).json({ error: 'Erro ao salvar no Supabase: ' + (error.message || error) });
+      }
+      return res.status(201).json({ success: true });
+    } catch (err) {
+      console.error('Exceção ao salvar acervo Supabase:', err.message);
+      return res.status(500).json({ error: 'Falha interna ao salvar no acervo.' });
+    }
+  }
+
+  // Modo Offline: SQLite
   if (!offlineDb) {
     return res.status(500).json({ error: 'Banco de dados não configurado!' });
   }
-
-  const cleanedUrl = extractRealUrl(url);
 
   try {
     const insert = offlineDb.prepare(`
@@ -441,17 +487,38 @@ app.post('/api/acervo', (req, res) => {
 });
 
 // Remover vídeo do acervo do usuário
-app.delete('/api/acervo', (req, res) => {
+app.delete('/api/acervo', async (req, res) => {
   const { user_id, url } = req.body;
   if (!user_id || !url) {
     return res.status(400).json({ error: 'user_id e url são obrigatórios!' });
   }
 
+  const cleanedUrl = extractRealUrl(url);
+
+  // Modo Online: Supabase
+  if (supabaseEnabled && supabase) {
+    try {
+      const { error } = await supabase
+        .from('acervo')
+        .delete()
+        .eq('user_id', user_id)
+        .eq('url', cleanedUrl);
+
+      if (error) {
+        console.error('Erro ao deletar acervo Supabase:', error.message || error);
+        return res.status(500).json({ error: 'Erro ao deletar no Supabase: ' + (error.message || error) });
+      }
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Exceção ao deletar acervo Supabase:', err.message);
+      return res.status(500).json({ error: 'Falha interna ao deletar vídeo.' });
+    }
+  }
+
+  // Modo Offline: SQLite
   if (!offlineDb) {
     return res.status(500).json({ error: 'Banco de dados não configurado!' });
   }
-
-  const cleanedUrl = extractRealUrl(url);
 
   try {
     const del = offlineDb.prepare('DELETE FROM acervo WHERE user_id = ? AND url = ?');
@@ -566,8 +633,44 @@ io.on('connection', (socket) => {
   console.log('User conectado no socket:', socket.id);
 
   // Registro/Join do Usuário
-  socket.on('join', (userData) => {
+  socket.on('join', async (userData) => {
     if (!userData || !userData.id) return;
+
+    // Verificar se o usuário ainda existe no banco de dados (Supabase/SQLite)
+    if (supabaseEnabled && supabase) {
+      try {
+        const { data: dbUser, error } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', userData.id)
+          .maybeSingle();
+
+        if (error || !dbUser) {
+          console.log(`Usuário não encontrado ou deletado no Supabase: ${userData.id}. Forçando deslogar.`);
+          socket.emit('forceLogout', 'Sua conta não existe mais ou foi excluída. Você foi deslogado.');
+          // Remove da lista de usuários ativos caso estivesse lá
+          delete cinemaState.users[userData.id];
+          io.emit('updateUsers', Object.values(cinemaState.users));
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao verificar existência de usuário no Supabase:', err.message);
+      }
+    } else if (offlineDb) {
+      try {
+        const dbUser = offlineDb.prepare('SELECT id FROM users WHERE id = ?').get(userData.id);
+        if (!dbUser) {
+          console.log(`Usuário não encontrado ou deletado no SQLite: ${userData.id}. Forçando deslogar.`);
+          socket.emit('forceLogout', 'Sua conta não existe mais ou foi excluída. Você foi deslogado.');
+          // Remove da lista de usuários ativos caso estivesse lá
+          delete cinemaState.users[userData.id];
+          io.emit('updateUsers', Object.values(cinemaState.users));
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao verificar existência de usuário no SQLite:', err);
+      }
+    }
 
     let user = Object.values(cinemaState.users).find(u => u.id === userData.id);
 
