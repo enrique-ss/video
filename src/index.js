@@ -176,17 +176,23 @@ app.post('/api/register', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { data: existing } = await supabase
+      // .maybeSingle() retorna null sem erro quando não encontra (ao contrário do .single())
+      const { data: existing, error: checkError } = await supabase
         .from('users')
         .select('id')
         .eq('email', email.toLowerCase())
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Supabase check email error:', JSON.stringify(checkError));
+        return res.status(500).json({ error: 'Erro ao verificar e-mail. Tente novamente.' });
+      }
 
       if (existing) {
         return res.status(400).json({ error: 'Este e-mail já está em uso!' });
       }
 
-      const { error } = await supabase.from('users').insert({
+      const { error: insertError } = await supabase.from('users').insert({
         id: userId,
         name,
         email: email.toLowerCase(),
@@ -196,14 +202,18 @@ app.post('/api/register', async (req, res) => {
         created_at: createdAt
       });
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Supabase insert error:', JSON.stringify(insertError));
+        return res.status(500).json({ error: `Falha ao registrar: ${insertError.message}` });
+      }
 
+      console.log(`Novo usuário registrado no Supabase: ${name} (${email.toLowerCase()})`);
       return res.status(201).json({
         success: true,
         user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
       });
     } catch (err) {
-      console.error('Erro no registro Supabase:', err.message);
+      console.error('Erro inesperado no registro Supabase:', err.message);
       return res.status(500).json({ error: 'Falha ao registrar usuário.' });
     }
   }
