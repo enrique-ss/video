@@ -1,17 +1,13 @@
 :root {
-    --bg-color: #060608;
-    --bg-gradient: linear-gradient(180deg, #07060a 0%, #0d0c14 100%);
-    --accent-pink: #ff0050; /* TikTok Pink */
-    --accent-cyan: #00f2ea; /* TikTok Cyan */
-    --accent-glow: rgba(0, 242, 234, 0.4);
-    
-    --card-bg: rgba(18, 16, 28, 0.6);
-    --card-border: rgba(255, 255, 255, 0.05);
-    --card-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-    
-    --text-white: #ffffff;
-    --text-dim: rgba(255, 255, 255, 0.6);
+    --bg-dark: #0a0a0c;
+    --bg-card: rgba(18, 18, 24, 0.45);
+    --card-border: rgba(255, 255, 255, 0.06);
+    --text-main: #f5f5f7;
+    --text-dim: #86868b;
     --text-muted: rgba(255, 255, 255, 0.35);
+    --accent-cyan: #00f2ea;
+    --accent-pink: #ff0050;
+    --accent-gold: #ffd700;
     
     --font-main: 'Plus Jakarta Sans', sans-serif;
     --font-heading: 'Outfit', sans-serif;
@@ -26,11 +22,12 @@
 
 body {
     font-family: var(--font-main);
-    background-color: var(--bg-color);
-    color: var(--text-white);
+    background: var(--bg-dark);
+    color: var(--text-main);
     min-height: 100vh;
     display: flex;
     justify-content: center;
+    align-items: center;
     overflow: hidden;
 }
 
@@ -41,21 +38,20 @@ body {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: var(--bg-gradient);
+    background: var(--bg-dark);
     border-left: 1px solid var(--card-border);
     border-right: 1px solid var(--card-border);
-    box-shadow: var(--card-shadow);
     position: relative;
 }
 
 /* Glassmorphic General Cards */
 .glass-card {
-    background: var(--card-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: var(--bg-card);
     border: 1px solid var(--card-border);
     border-radius: 16px;
-    box-shadow: var(--card-shadow);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 /* --- PREMIUM APP HEADER --- */
@@ -79,31 +75,29 @@ body {
     flex-grow: 1;
 }
 
-.app-logo {
-    font-size: 1.25rem;
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
-}
-
-/* Input Bar inside the Header */
 .header-input-wrapper {
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--bg-chat-input);
     border: 1px solid var(--card-border);
     border-radius: 20px;
     padding: 2px 4px 2px 10px;
-    max-width: 180px;
+    max-width: 170px;
     width: 100%;
     margin-left: 4px;
+    flex-shrink: 1;
+    min-width: 90px;
+    transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .header-input-wrapper input {
     background: transparent;
     border: none;
     outline: none;
-    color: var(--text-white);
     font-size: 0.75rem;
+    color: var(--text-main);
     width: 100%;
+    font-weight: 500;
 }
 
 .header-input-wrapper input::placeholder {
@@ -124,6 +118,7 @@ body {
     align-items: center;
     justify-content: center;
     padding: 0;
+    flex-shrink: 0;
 }
 
 .header-input-wrapper button:active {
@@ -156,37 +151,36 @@ body {
 }
 
 .user-tag {
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 8px;
-    max-width: 85px;
+    background: linear-gradient(45deg, var(--accent-cyan), #00b5ad);
+    color: #000;
+    font-weight: 700;
+    font-size: 0.75rem;
+    border: none;
+    border-radius: 12px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: var(--font-heading);
+    box-shadow: 0 0 10px var(--accent-glow);
+    max-width: 90px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.logout-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--card-border);
-    font-size: 0.8rem;
-    padding: 4px 6px;
-    border-radius: 8px;
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    user-select: none;
 }
 
-.logout-btn:hover {
-    background: rgba(255, 0, 80, 0.2);
-    border-color: var(--accent-pink);
-    transform: scale(1.05);
+.user-tag:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 0 14px rgba(0, 242, 234, 0.45);
+    transform: translateY(-1px);
 }
 
-.logout-btn:active {
-    transform: scale(0.95);
+.user-tag:active {
+    transform: translateY(1px);
 }
 
 /* --- MAIN APP VIEWPORT (UNIFIED SINGLE SCREEN) --- */
@@ -250,6 +244,17 @@ body {
     font-size: 0.75rem;
     color: var(--text-dim);
     background: rgba(255, 255, 255, 0.01);
+    position: relative;
+}
+
+.host-indicator {
+    color: #ffd700; /* Gold Yellow */
+    font-weight: 700;
+    text-shadow: 0 0 4px rgba(255, 215, 0, 0.2);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
 }
 
 .online-indicator {
@@ -264,6 +269,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    position: relative;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -315,7 +321,7 @@ body {
     flex-grow: 1;
     background: transparent;
     border: none;
-    color: var(--text-white);
+    color: var(--text-main);
     outline: none;
     font-size: 0.8rem;
 }
@@ -349,7 +355,7 @@ body {
     padding: 20px;
 }
 
-.overlay.hidden {
+.hidden {
     display: none !important;
 }
 
@@ -388,7 +394,7 @@ body {
     border: 1px solid var(--card-border);
     padding: 12px;
     border-radius: 10px;
-    color: white;
+    color: var(--text-main);
     font-size: 0.85rem;
     margin-bottom: 10px;
     outline: none;
@@ -543,4 +549,203 @@ button#btn-submit-login, button#btn-submit-register, button#join-btn, .glow-btn 
 .finish-video-btn:hover {
     color: white;
     background: rgba(255, 255, 255, 0.08);
+}
+
+/* --- RESPONSIVIDADE PARA CELULARES PEQUENOS --- */
+@media (max-width: 360px) {
+    .app-header {
+        padding: 8px 10px;
+        height: 52px;
+    }
+    .header-left {
+        gap: 6px;
+    }
+    .header-input-wrapper {
+        max-width: 120px;
+        min-width: 80px;
+        padding-left: 6px;
+    }
+    .header-start-btn {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+    }
+    .user-tag {
+        font-size: 0.65rem;
+        padding: 4px 6px;
+        max-width: 65px;
+    }
+}
+
+/* --- ESTILOS ADICIONAIS DO ACERVO --- */
+.use-acervo-btn:hover {
+    filter: brightness(1.15);
+    transform: scale(1.05);
+}
+.use-acervo-btn:active {
+    transform: scale(0.95);
+}
+
+.delete-acervo-btn:hover {
+    background: rgba(255, 0, 0, 0.2) !important;
+    transform: scale(1.05);
+}
+.delete-acervo-btn:active {
+    transform: scale(0.95);
+}
+
+/* --- ESTILOS DO POPUP ULTRA-MINIMALISTA --- */
+#options-modal.overlay {
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.minimal-menu-btn {
+    width: 100%;
+    height: 34px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+.minimal-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: scale(1.02);
+}
+
+.minimal-menu-btn:active {
+    transform: scale(0.97);
+}
+
+/* Hover específicos */
+.minimal-menu-btn.delete-style:hover {
+    background: rgba(255, 0, 80, 0.1);
+    border-color: rgba(255, 0, 80, 0.2);
+    color: var(--accent-pink);
+}
+
+.minimal-menu-btn.close-style:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.acervo-control-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-border);
+    color: var(--text-dim);
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 3px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.acervo-control-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Transição de morphing para o popover do acervo */
+.options-popover-card {
+    transition: width 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+    overflow: hidden;
+}
+
+/* --- PREMIUM CUSTOM SCROLLBARS --- */
+#acervo-list::-webkit-scrollbar,
+.chat-messages::-webkit-scrollbar,
+.playlist-wrapper::-webkit-scrollbar,
+.chat-history::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+#acervo-list::-webkit-scrollbar-track,
+.chat-messages::-webkit-scrollbar-track,
+.playlist-wrapper::-webkit-scrollbar-track,
+.chat-history::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#acervo-list::-webkit-scrollbar-thumb,
+.chat-messages::-webkit-scrollbar-thumb,
+.playlist-wrapper::-webkit-scrollbar-thumb,
+.chat-history::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+#acervo-list::-webkit-scrollbar-thumb:hover,
+.chat-messages::-webkit-scrollbar-thumb:hover,
+.playlist-wrapper::-webkit-scrollbar-thumb:hover,
+.chat-history::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-cyan);
+}
+
+/* --- OVERRIDE ESTILO DO BOTÃO ACERVO --- */
+#open-acervo-btn.minimal-menu-btn {
+    background: linear-gradient(135deg, #00f2ea 0%, #00b5ad 100%) !important;
+    border: none !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 0 10px rgba(0, 242, 234, 0.2);
+}
+
+#open-acervo-btn.minimal-menu-btn:hover {
+    box-shadow: 0 0 15px rgba(0, 242, 234, 0.45) !important;
+    filter: brightness(1.08) !important;
+    transform: scale(1.02) !important;
+}
+
+#open-acervo-btn.minimal-menu-btn:active {
+    transform: scale(0.97) !important;
+}
+
+/* --- ESTILOS DOS BOTÕES DE AVATAR PRESET --- */
+.preset-avatar-btn {
+    flex-grow: 1;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.preset-avatar-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: scale(1.1);
+}
+
+.preset-avatar-btn.selected {
+    background: rgba(0, 242, 234, 0.1) !important;
+    border-color: var(--accent-cyan) !important;
+}
+
+.reaction-btn {
+    transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+.reaction-btn:hover {
+    transform: scale(1.4) translateY(-2px);
+}
+.reaction-btn:active {
+    transform: scale(0.9);
 }

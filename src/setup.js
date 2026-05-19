@@ -16,6 +16,8 @@ function applySchema(db) {
       name TEXT,
       email TEXT UNIQUE,
       password_hash TEXT,
+      avatar TEXT,
+      bg_color TEXT,
       created_at TEXT
     );
 
@@ -32,14 +34,27 @@ function applySchema(db) {
       added_by_user_id TEXT,
       added_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS acervo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      url TEXT,
+      title TEXT,
+      thumbnail TEXT,
+      created_at TEXT
+    );
   `);
 
-  // Migração segura para adicionar a coluna 'name' caso o banco já existisse
+  // Migração segura para adicionar colunas caso o banco já existisse
   try {
     db.prepare("ALTER TABLE users ADD COLUMN name TEXT").run();
-  } catch (err) {
-    // Ignora se a coluna já existir
-  }
+  } catch (err) {}
+  try {
+    db.prepare("ALTER TABLE users ADD COLUMN avatar TEXT").run();
+  } catch (err) {}
+  try {
+    db.prepare("ALTER TABLE users ADD COLUMN bg_color TEXT").run();
+  } catch (err) {}
 }
 
 function recreateDatabase() {

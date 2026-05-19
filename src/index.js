@@ -17,9 +17,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3002;
-const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY || 'MOCK_KEY';
-const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET || 'MOCK_SECRET';
-const REDIRECT_URI = process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/tiktok/callback`;
+
 
 // Supabase Config
 const requestedMode = (process.env.APP_MODE || 'offline').toLowerCase();
@@ -39,6 +37,9 @@ app.use(express.static(publicPath));
 app.use(express.json());
 app.use(cookieParser());
 
+// Evita erro 404 de favicon.ico no console do navegador
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Banco de Dados SQLite (Sempre inicializado para autenticação estável e histórico local)
 let offlineDb = null;
 try {
@@ -55,7 +56,26 @@ const supabase = supabaseEnabled
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   : null;
 
-// Máquina de Estados Global - TikTok Cinema (Estilo Gartic Phone)
+// 15 Cores exclusivas e vibrantes para os usuários (garante alta visibilidade em ambos os temas)
+const PREDEFINED_COLORS = [
+  '#ff0050', // Rosa Neon
+  '#00f2ea', // Ciano Elétrico
+  '#ffd700', // Ouro / Amarelo
+  '#00ff66', // Verde Primavera
+  '#7000ff', // Roxo Violeta
+  '#ff7700', // Laranja Pôr do Sol
+  '#ff00ff', // Magenta
+  '#0099ff', // Azul Céu
+  '#ff3333', // Vermelho Coral
+  '#33cc33', // Verde Limão
+  '#9933ff', // Lilás
+  '#ff9900', // Laranja Âmbar
+  '#00ffd8', // Turquesa
+  '#ff00a0', // Rosa Escuro
+  '#ffea00'  // Amarelo Limão
+];
+
+// Máquina de Estados Global - Cinema das Guria (Estilo Gartic Phone)
 let cinemaState = {
   status: 'LOBBY', // LOBBY, PLAYING, VOTING, PODIUM
   users: {}, // { userId: User }
@@ -144,7 +164,7 @@ function saveRankingToDb(sortedRank) {
 
 // API de Registro de Usuários no Banco de Dados SQLite (ou Supabase no futuro)
 app.post('/api/register', (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, avatar } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Preencha todos os campos obrigatórios!' });
   }
@@ -159,14 +179,14 @@ app.post('/api/register', (req, res) => {
 
   try {
     const insert = offlineDb.prepare(`
-      INSERT INTO users (id, name, email, password_hash, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (id, name, email, password_hash, avatar, bg_color, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    insert.run(userId, name, email.toLowerCase(), passwordHash, createdAt);
+    insert.run(userId, name, email.toLowerCase(), passwordHash, avatar || null, '#0a0a0c', createdAt);
     
     return res.status(201).json({
       success: true,
-      user: { id: userId, name, email: email.toLowerCase() }
+      user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
     });
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed')) {
@@ -201,11 +221,86 @@ app.post('/api/login', (req, res) => {
 
     return res.json({
       success: true,
-      user: { id: user.id, name: user.name, email: user.email }
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        avatar: user.avatar || null, 
+        bg_color: user.bg_color || '#0a0a0c' 
+      }
     });
   } catch (err) {
     console.error('Erro no login SQLite:', err);
     return res.status(500).json({ error: 'Falha interna ao realizar login.' });
+  }
+});
+
+// --- ENDPOINTS DO ACERVO DE VÍDEOS (SQLite) ---
+
+// Obter acervo do usuário
+app.get('/api/acervo', (req, res) => {
+  const { user_id } = req.query;
+  if (!user_id) {
+    return res.status(400).json({ error: 'Parâmetro user_id obrigatório!' });
+  }
+
+  if (!offlineDb) {
+    return res.status(500).json({ error: 'Banco de dados não configurado!' });
+  }
+
+  try {
+    const list = offlineDb.prepare('SELECT * FROM acervo WHERE user_id = ? ORDER BY id DESC').all(user_id);
+    return res.json({ success: true, list });
+  } catch (err) {
+    console.error('Erro ao buscar acervo SQLite:', err);
+    return res.status(500).json({ error: 'Falha interna ao buscar acervo.' });
+  }
+});
+
+// Adicionar vídeo ao acervo do usuário
+app.post('/api/acervo', (req, res) => {
+  const { user_id, url, title, thumbnail } = req.body;
+  if (!user_id || !url || !title || !thumbnail) {
+    return res.status(400).json({ error: 'Dados incompletos!' });
+  }
+
+  if (!offlineDb) {
+    return res.status(500).json({ error: 'Banco de dados não configurado!' });
+  }
+
+  try {
+    const insert = offlineDb.prepare(`
+      INSERT INTO acervo (user_id, url, title, thumbnail, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    insert.run(user_id, url, title, thumbnail, new Date().toISOString());
+
+    return res.status(201).json({ success: true });
+  } catch (err) {
+    console.error('Erro ao salvar no acervo SQLite:', err);
+    return res.status(500).json({ error: 'Falha interna ao salvar no acervo.' });
+  }
+});
+
+// Remover vídeo do acervo do usuário
+app.delete('/api/acervo', (req, res) => {
+  const { user_id, url } = req.body;
+  if (!user_id || !url) {
+    return res.status(400).json({ error: 'user_id e url são obrigatórios!' });
+  }
+
+  if (!offlineDb) {
+    return res.status(500).json({ error: 'Banco de dados não configurado!' });
+  }
+
+  try {
+    const del = offlineDb.prepare('DELETE FROM acervo WHERE user_id = ? AND url = ?');
+    del.run(user_id, url);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erro ao deletar no acervo SQLite:', err);
+    return res.status(500).json({ error: 'Falha interna ao deletar vídeo.' });
   }
 });
 
@@ -214,101 +309,35 @@ app.get('/env.js', (req, res) => {
   const publicConfig = {
     APP_MODE: runtimeMode,
     SUPABASE_URL: supabaseEnabled ? process.env.SUPABASE_URL : '',
-    SUPABASE_ANON_KEY: supabaseEnabled ? process.env.SUPABASE_ANON_KEY : '',
-    TIKTOK_LOGIN_ENABLED: false
+    SUPABASE_ANON_KEY: supabaseEnabled ? process.env.SUPABASE_ANON_KEY : ''
   };
 
   res.type('application/javascript');
   res.send(`window.ENV = ${JSON.stringify(publicConfig)};`);
 });
 
-// Rotas de Autenticação TikTok
-app.get('/auth/tiktok', (req, res) => {
-  if (TIKTOK_CLIENT_KEY === 'MOCK_KEY') {
-    const mockCode = 'mock_auth_code_' + Math.random().toString(36).substring(7);
-    return res.redirect(`/auth/tiktok/callback?code=${mockCode}`);
+// Helper Functions for Video URL Normalization
+function extractYoutubeId(url) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+
+function normalizeUrl(url) {
+  if (!url) return '';
+  const ytId = extractYoutubeId(url);
+  if (ytId) {
+    return `https://www.youtube.com/watch?v=${ytId}`;
   }
-
-  const csrfState = crypto.randomBytes(16).toString('hex');
-  res.cookie('csrfState', csrfState, { httpOnly: true });
-
-  let url = 'https://www.tiktok.com/v2/auth/authorize/';
-  url += `?client_key=${TIKTOK_CLIENT_KEY}`;
-  url += '&scope=user.info.basic,video.list';
-  url += '&response_type=code';
-  url += `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-  url += `&state=${csrfState}`;
-
-  res.redirect(url);
-});
-
-app.get('/auth/tiktok/callback', async (req, res) => {
-  const { code } = req.query;
-
-  if (TIKTOK_CLIENT_KEY === 'MOCK_KEY') {
-    const mockUser = {
-      open_id: 'tiktok_' + Math.random().toString(36).substring(7),
-      display_name: 'TikTok Fan ' + Math.floor(Math.random() * 900 + 100),
-      avatar_url: 'https://placehold.co/100x100?text=TK'
-    };
-    return res.send(`
-      <script>
-        window.opener.postMessage({ type: 'tiktok_login', user: ${JSON.stringify(mockUser)} }, '*');
-        window.close();
-      </script>
-    `);
-  }
-
-  try {
-    const tokenResponse = await axios.post('https://open.tiktokapis.com/v2/oauth/token/', 
-      new URLSearchParams({
-        client_key: TIKTOK_CLIENT_KEY,
-        client_secret: TIKTOK_CLIENT_SECRET,
-        code: code,
-        grant_type: 'authorization_code',
-        redirect_uri: REDIRECT_URI,
-      }).toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
-
-    const { access_token } = tokenResponse.data;
-
-    const userResponse = await axios.get('https://open.tiktokapis.com/v2/user/info/', {
-      params: { fields: 'open_id,display_name,avatar_url' },
-      headers: { 'Authorization': `Bearer ${access_token}` }
-    });
-
-    const userData = userResponse.data.data.user;
-
-    res.send(`
-      <script>
-        window.opener.postMessage({ type: 'tiktok_login', user: ${JSON.stringify(userData)} }, '*');
-        window.close();
-      </script>
-    `);
-  } catch (error) {
-    console.error('Erro no Login TikTok:', error.response?.data || error.message);
-    res.status(500).send('Falha na autenticação com o TikTok.');
-  }
-});
-
-app.get('/api/tiktok/liked-videos', (req, res) => {
-  const sampleVideos = [
-    { url: 'https://www.tiktok.com/@khaby.lame/video/7123456789012345678', title: 'Khaby Lame funny' },
-    { url: 'https://www.tiktok.com/@zachking/video/7234567890123456789', title: 'Zach King Magic' },
-    { url: 'https://www.tiktok.com/@bellapoarch/video/7345678901234567890', title: 'Bella Poarch M to the B' },
-    { url: 'https://www.tiktok.com/@charlidamelio/video/7456789012345678901', title: 'Charli Dance' }
-  ];
-  const shuffled = sampleVideos.sort(() => 0.5 - Math.random());
-  res.json(shuffled.slice(0, 3));
-});
+  return url.trim();
+}
 
 // Socket.io Logic - TikTok Cinema
 io.on('connection', (socket) => {
-  // Limitação de Conexão - Máximo 20 usuários
+  // Limitação de Conexão - Máximo 15 usuários
   const activeUserCount = Object.keys(cinemaState.users).length;
-  if (activeUserCount >= 20) {
-    socket.emit('errorMsg', 'A sala está cheia (máximo de 20 usuários)!');
+  if (activeUserCount >= 15) {
+    socket.emit('errorMsg', 'A sala está cheia (máximo de 15 usuários)!');
     socket.disconnect(true);
     return;
   }
@@ -322,24 +351,33 @@ io.on('connection', (socket) => {
     if (user) {
       // Reconexão de usuário existente
       user.socketId = socket.id;
+      if (userData.avatar) user.avatar = userData.avatar;
       console.log(`Usuário ${user.name} reconectou sob socket ${socket.id}`);
     } else {
       // Criação de novo usuário
       const isFirst = Object.keys(cinemaState.users).length === 0;
+
+      // Distribuição de cores exclusivas sem repetição (máximo de 15 usuários)
+      const activeColors = Object.values(cinemaState.users).map(u => u.color);
+      const availableColors = PREDEFINED_COLORS.filter(c => !activeColors.includes(c));
+      const assignedColor = availableColors.length > 0
+        ? availableColors[Math.floor(Math.random() * availableColors.length)]
+        : `#${Math.floor(Math.random()*16777215).toString(16)}`;
+
       user = {
         id: userData.id || crypto.randomUUID(),
         name: userData.name || 'Convidado ' + Math.floor(Math.random() * 900 + 100),
         socketId: socket.id,
         isHost: isFirst,
         authMethod: userData.authMethod || 'guest',
-        tiktokHandle: userData.tiktokHandle || '',
-        color: userData.color || `#${Math.floor(Math.random()*16777215).toString(16)}`
+        color: assignedColor,
+        avatar: userData.avatar || null
       };
 
       cinemaState.users[user.id] = user;
       cinemaState.scores[user.id] = cinemaState.scores[user.id] || 0;
       
-      console.log(`Novo usuário registrado: ${user.name} (${user.id})`);
+      console.log(`Novo usuário registrado com cor única ${assignedColor}: ${user.name} (${user.id})`);
     }
 
     // Emitir atualizações
@@ -381,15 +419,17 @@ io.on('connection', (socket) => {
       return socket.emit('errorMsg', 'Você já adicionou o limite máximo de 5 vídeos!');
     }
 
-    // Validar se o link é duplicado
-    const isDuplicate = cinemaState.playlist.some(v => v.url === url);
+    const normalizedUrl = normalizeUrl(url);
+
+    // Validar se o link é duplicado (compara formatos normalizados de todos os vídeos da fila)
+    const isDuplicate = cinemaState.playlist.some(v => normalizeUrl(v.url) === normalizedUrl);
     if (isDuplicate) {
       return socket.emit('errorMsg', 'Este link de vídeo já está na fila!');
     }
 
     const videoEntry = {
       id: crypto.randomUUID(),
-      url: url,
+      url: normalizedUrl, // Salva o link já em formato consistente normalizado
       addedBy: user.id,
       played: false
     };
@@ -452,6 +492,7 @@ io.on('connection', (socket) => {
     const message = {
       user: user.name,
       color: user.color || '#ff0050',
+      avatar: user.avatar || null,
       text: trimmedText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
@@ -462,6 +503,48 @@ io.on('connection', (socket) => {
     }
 
     io.emit('newMessage', message);
+  });
+
+  // Disparo de Reação Flutuante no Chat
+  socket.on('sendReaction', (emoji) => {
+    io.emit('newReaction', emoji);
+  });
+
+  // Módulo de Atualização de Perfil (Nome, Avatar e Cor de Fundo)
+  socket.on('updateProfile', (data) => {
+    const user = Object.values(cinemaState.users).find(u => u.socketId === socket.id);
+    if (!user) return;
+
+    if (data.name && data.name.trim()) {
+      user.name = data.name.trim();
+    }
+
+    user.avatar = data.avatar || null;
+
+    // Persistir no banco de dados SQLite do usuário
+    if (offlineDb) {
+      try {
+        const update = offlineDb.prepare('UPDATE users SET name = ?, avatar = ?, bg_color = ? WHERE id = ?');
+        update.run(user.name, user.avatar, data.bg_color || '#0a0a0c', user.id);
+      } catch (err) {
+        console.error('Erro ao atualizar usuário no SQLite:', err);
+      }
+    }
+
+    // Atualizar avatares do chat histórico
+    cinemaState.chatHistory.forEach(msg => {
+      if (msg.user === user.name) {
+        msg.avatar = user.avatar;
+      }
+    });
+
+    const loggedAvatar = (user.avatar && user.avatar.length > 60)
+      ? `${user.avatar.substring(0, 30)}... [Base64 Cortado]`
+      : user.avatar;
+    console.log(`Usuário ${user.id} atualizou perfil: Nome = ${user.name}, Avatar = ${loggedAvatar}, Cor = ${data.bg_color || '#0a0a0c'}`);
+
+    io.emit('updateUsers', Object.values(cinemaState.users));
+    io.emit('stateChange', getClientState());
   });
 
   // Reiniciar jogo (Só Host pode resetar em PODIUM)
@@ -646,5 +729,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`TikTok Cinema rodando em http://localhost:${PORT} (${runtimeMode})`);
+  console.log(`Cinema das Guria rodando em http://localhost:${PORT} (${runtimeMode})`);
 });

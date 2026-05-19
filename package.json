@@ -1,7 +1,7 @@
 {
-  "name": "cinema-tiktok",
+  "name": "cinema-das-guria",
   "version": "1.0.0",
-  "description": "Cinema TikTok com chat e votação",
+  "description": "Cinema das Guria com chat e votação",
   "main": "src/index.js",
   "scripts": {
     "setup": "node src/setup.js",

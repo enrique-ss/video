@@ -1,5 +1,11 @@
 const socket = io();
 
+// Load saved custom background color immediately
+const savedBg = localStorage.getItem('cinema_das_guria_bg');
+if (savedBg) {
+    document.documentElement.style.setProperty('--bg-dark', savedBg);
+}
+
 // Configurações globais
 const ENV = window.ENV || { TIKTOK_LOGIN_ENABLED: false };
 
@@ -11,7 +17,8 @@ let myUser = {
     isHost: false,
     authMethod: 'guest',
     tiktokHandle: '',
-    color: ''
+    color: '',
+    avatar: null
 };
 
 // DOM Elements
@@ -20,6 +27,7 @@ const usernameInput = document.getElementById('username-input');
 const joinBtn = document.getElementById('join-btn');
 const tiktokUrlInput = document.getElementById('tiktok-url');
 const addVideoBtn = document.getElementById('add-video-btn');
+const headerInputWrapper = document.querySelector('.header-input-wrapper');
 const videoWrapper = document.getElementById('video-wrapper');
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
@@ -31,7 +39,7 @@ const votingOptions = document.getElementById('voting-options');
 const votingStatus = document.getElementById('voting-status');
 const startGameBtn = document.getElementById('start-game-btn');
 const playAgainBtn = document.getElementById('play-again-btn');
-const logoutBtn = document.getElementById('logout-btn');
+const currentUserTag = document.getElementById('current-user-tag');
 
 // --- DUAL AUTH (LOGIN / REGISTER) ELEMENTS ---
 const registerOverlay = document.getElementById('register-overlay');
@@ -60,7 +68,90 @@ linkToLogin.addEventListener('click', (e) => {
     loginOverlay.classList.remove('hidden');
 });
 
+// Função para reduzir o tamanho e comprimir fotos de perfil antes de enviar
+function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            // Mantém a proporção da imagem ao redimensionar
+            if (width > height) {
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width *= maxHeight / height;
+                    height = maxHeight;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Transforma em JPEG compactado de tamanho reduzido (menos de 5KB-10KB)
+            const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            callback(compressedBase64);
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Helper para gerar o HTML do avatar (tanto emoji quanto imagem em base64/URL)
+function getAvatarHtml(avatar, color) {
+    if (!avatar) {
+        return `<span style="font-size: 1.4rem; line-height: 1; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1.5px solid ${color || '#00f2ea'};">👤</span>`;
+    }
+    const isImage = avatar.startsWith('http') || avatar.startsWith('data:image');
+    if (isImage) {
+        return `<img src="${avatar}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid ${color || '#00f2ea'}; flex-shrink: 0;">`;
+    } else {
+        return `<span style="font-size: 1.4rem; line-height: 1; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1.5px solid ${color || '#00f2ea'};">${avatar}</span>`;
+    }
+}
+
 // Submit Register Form
+let registrationAvatar = null;
+
+const registerAvatarPreview = document.getElementById('register-avatar-preview');
+const registerAvatarFile = document.getElementById('register-avatar-file');
+const btnTriggerRegisterFile = document.getElementById('btn-trigger-register-file');
+const registerPreviewPlaceholder = document.getElementById('register-preview-placeholder');
+const registerPreviewImg = document.getElementById('register-preview-img');
+
+if (registerAvatarPreview) {
+    registerAvatarPreview.addEventListener('click', () => registerAvatarFile.click());
+}
+if (btnTriggerRegisterFile) {
+    btnTriggerRegisterFile.addEventListener('click', () => registerAvatarFile.click());
+}
+
+if (registerAvatarFile) {
+    registerAvatarFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        compressImageFile(file, 128, 128, 0.7, (base64Url) => {
+            registrationAvatar = base64Url;
+
+            // Atualiza miniatura de visualização
+            registerPreviewImg.src = base64Url;
+            registerPreviewImg.style.display = 'block';
+            registerPreviewPlaceholder.style.display = 'none';
+        });
+    });
+}
+
+
 btnSubmitRegister.addEventListener('click', async () => {
     const name = registerName.value.trim();
     const email = registerEmail.value.trim();
@@ -75,14 +166,14 @@ btnSubmitRegister.addEventListener('click', async () => {
         const res = await fetch('/api/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password })
+            body: JSON.stringify({ name, email, password, avatar: registrationAvatar })
         });
         const data = await res.json();
         
         if (data.error) {
             alert(data.error);
         } else if (data.success) {
-            completeLogin(data.user.name, data.user.id);
+            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color);
         }
     } catch (err) {
         console.error(err);
@@ -111,7 +202,7 @@ btnSubmitLogin.addEventListener('click', async () => {
         if (data.error) {
             alert(data.error);
         } else if (data.success) {
-            completeLogin(data.user.name, data.user.id);
+            completeLogin(data.user.name, data.user.id, data.user.avatar, null, data.user.bg_color);
         }
     } catch (err) {
         console.error(err);
@@ -120,11 +211,11 @@ btnSubmitLogin.addEventListener('click', async () => {
 });
 
 // --- SESSION CONTROL (TK-06 & TK-07) ---
-const savedUser = localStorage.getItem('tiktok_cinema_user');
+const savedUser = localStorage.getItem('cinema_das_guria_user');
 if (savedUser) {
     try {
         myUser = JSON.parse(savedUser);
-        completeLogin(myUser.name, myUser.id);
+        completeLogin(myUser.name, myUser.id, myUser.avatar, myUser.color, myUser.bg_color);
     } catch (err) {
         console.error('Falha ao restaurar sessão de usuário:', err);
         loginOverlay.classList.remove('hidden');
@@ -133,24 +224,51 @@ if (savedUser) {
     loginOverlay.classList.remove('hidden');
 }
 
-// Evento de clique para Logout
-logoutBtn.addEventListener('click', () => {
-    localStorage.removeItem('tiktok_cinema_user');
-    window.location.reload();
-});
+// Evento de clique no nome do usuário para abrir o menu de opções
+if (currentUserTag) {
+    currentUserTag.addEventListener('click', () => {
+        const modal = document.getElementById('options-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            const mainMenu = document.getElementById('options-main-menu');
+            const acervoPanel = document.getElementById('options-acervo-panel');
+            const editPanel = document.getElementById('options-edit-panel');
+            const card = document.getElementById('options-modal-card');
+            if (mainMenu) mainMenu.classList.remove('hidden');
+            if (acervoPanel) acervoPanel.classList.add('hidden');
+            if (editPanel) editPanel.classList.add('hidden');
+            if (card) card.style.width = '180px';
+        }
+    });
+}
 
-function completeLogin(name, id) {
+function completeLogin(name, id, avatar, color, bg_color) {
     myUser.name = name;
     if (id) {
         myUser.id = id;
     } else if (!myUser.id) {
         myUser.id = 'usr_' + Math.random().toString(36).substr(2, 9);
     }
-    if (!myUser.color) {
+    if (avatar) {
+        myUser.avatar = avatar;
+    }
+    if (color) {
+        myUser.color = color;
+    } else if (!myUser.color) {
         myUser.color = '#' + Math.floor(Math.random()*16777215).toString(16);
     }
+    if (bg_color) {
+        myUser.bg_color = bg_color;
+    } else if (!myUser.bg_color) {
+        myUser.bg_color = '#0a0a0c';
+    }
 
-    localStorage.setItem('tiktok_cinema_user', JSON.stringify(myUser));
+    localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+    
+    // Aplicar a cor de fundo do site de cada usuário
+    document.documentElement.style.setProperty('--bg-dark', myUser.bg_color);
+    localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
+
     socket.emit('join', myUser);
 
     loginOverlay.style.opacity = '0';
@@ -164,10 +282,14 @@ function completeLogin(name, id) {
 }
 
 function updateCurrentUserTag() {
-    const tag = document.getElementById('current-user-tag');
-    if (tag) {
-        tag.innerHTML = myUser.name;
-        tag.style.background = myUser.color;
+    if (currentUserTag) {
+        const isImage = myUser.avatar && (myUser.avatar.startsWith('http') || myUser.avatar.startsWith('data:image'));
+        const avatarHtml = myUser.avatar 
+            ? (isImage 
+                ? '' // Fotos do dispositivo/link não aparecem no cabeçalho
+                : `<span style="font-size: 0.75rem; margin-right: 4px;">${myUser.avatar}</span>`) 
+            : '';
+        currentUserTag.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 4px;">${avatarHtml}<span>${myUser.name}</span></div>`;
     }
 }
 
@@ -186,36 +308,8 @@ addVideoBtn.addEventListener('click', () => {
 function renderVideoPlayer(url, isHost) {
     videoWrapper.innerHTML = '';
     
-    // 1. TikTok
-    if (url.includes('tiktok.com') || url.includes('v.douyin.com')) {
-        const blockquote = document.createElement('blockquote');
-        blockquote.className = 'tiktok-embed';
-        blockquote.cite = url;
-        blockquote.setAttribute('data-video-id', extractVideoId(url));
-        blockquote.style.maxWidth = '100%';
-        blockquote.style.height = '100%';
-        
-        const section = document.createElement('section');
-        blockquote.appendChild(section);
-        videoWrapper.appendChild(blockquote);
-        
-        // Evita duplicar tag de script do SDK do TikTok na memória
-        let script = document.getElementById('tiktok-embed-script');
-        if (!script) {
-            script = document.createElement('script');
-            script.id = 'tiktok-embed-script';
-            script.src = 'https://www.tiktok.com/embed.js';
-            script.async = true;
-            document.body.appendChild(script);
-        } else {
-            // Se o script já está no documento, chama o renderizador para reprocessar a blockquote
-            if (window.tiktok && window.tiktok.embed) {
-                window.tiktok.embed.render();
-            }
-        }
-    } 
-    // 2. YouTube & YouTube Shorts
-    else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    // 1. YouTube & YouTube Shorts
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
         let videoId = '';
         if (url.includes('shorts/')) {
             const match = url.match(/\/shorts\/([^"&?\/\s]{11})/);
@@ -316,10 +410,7 @@ function renderGenericIframe(url) {
     videoWrapper.appendChild(container);
 }
 
-function extractVideoId(url) {
-    const match = url.match(/\/video\/(\d+)/);
-    return match ? match[1] : '';
-}
+
 
 // --- HOST START & RESET PARTY COMMANDS ---
 startGameBtn.addEventListener('click', () => {
@@ -332,11 +423,15 @@ playAgainBtn.addEventListener('click', () => {
 
 // --- STATE MACHINE SYNCING SYSTEM (TK-01) ---
 socket.on('syncState', (state) => {
-    console.log('Sincronização de Estado recebida:', state);
+    // console.log('Sincronização de Estado recebida:', state);
     
     const serverMe = state.users.find(u => u.id === myUser.id);
     if (serverMe) {
         myUser.isHost = serverMe.isHost;
+        myUser.color = serverMe.color;
+        myUser.name = serverMe.name;
+        myUser.avatar = serverMe.avatar || null;
+        updateCurrentUserTag();
     }
 
     // Toggle start game button inside Header (Top) exclusively for Host
@@ -346,13 +441,32 @@ socket.on('syncState', (state) => {
         startGameBtn.style.display = 'none';
     }
 
-    // Block video additions outside lobby
+    // Oculta a opção de Acervo quando a partida já começou
+    if (openAcervoBtn) {
+        if (state.status === 'LOBBY') {
+            openAcervoBtn.style.display = 'flex';
+        } else {
+            openAcervoBtn.style.display = 'none';
+            // Se o usuário estiver com o acervo aberto quando o host inicia, fecha o modal
+            if (optionsModal && !optionsModal.classList.contains('hidden') && optionsAcervoPanel && !optionsAcervoPanel.classList.contains('hidden')) {
+                optionsModal.classList.add('hidden');
+            }
+        }
+    }
+
+    // Block video additions outside lobby and hide it during active game states
     if (state.status === 'LOBBY') {
         tiktokUrlInput.disabled = false;
         addVideoBtn.disabled = false;
+        if (headerInputWrapper) headerInputWrapper.style.display = 'flex';
+    } else if (state.status === 'PODIUM') {
+        tiktokUrlInput.disabled = true;
+        addVideoBtn.disabled = true;
+        if (headerInputWrapper) headerInputWrapper.style.display = 'flex';
     } else {
         tiktokUrlInput.disabled = true;
         addVideoBtn.disabled = true;
+        if (headerInputWrapper) headerInputWrapper.style.display = 'none';
     }
 
     // Overlays triggers
@@ -382,32 +496,73 @@ socket.on('syncState', (state) => {
                 <small>Adicione links no cabeçalho acima!</small>
             </div>
         `;
+    } else if (state.status === 'VOTING') {
+        videoWrapper.innerHTML = `
+            <div id="video-placeholder">
+                <p>Fase de Palpites! 🤫</p>
+                <small>Quem você acha que escolheu o último vídeo?</small>
+            </div>
+        `;
+    } else if (state.status === 'PODIUM') {
+        videoWrapper.innerHTML = `
+            <div id="video-placeholder">
+                <p>Cinema Encerrado 🏆</p>
+                <small>Confira os vencedores no pódio final!</small>
+            </div>
+        `;
     }
 
     // Sync playlist count indicator inside Chat Header Slim
     document.getElementById('queue-count').innerText = state.playlist.length;
     
     // Sync simplified playlist queue list
-    playlistItems.innerHTML = '';
-    if (state.playlist.length === 0) {
-        playlistItems.innerHTML = '<li class="empty-list">Fila de reprodução vazia</li>';
-    } else {
-        state.playlist.forEach((item, index) => {
-            const li = document.createElement('li');
-            li.innerHTML = `<span>🎬 Vídeo #${index + 1} na Fila</span> <span>Pronto</span>`;
-            playlistItems.appendChild(li);
-        });
+    if (playlistItems) {
+        playlistItems.innerHTML = '';
+        if (state.playlist.length === 0) {
+            playlistItems.innerHTML = '<li class="empty-list">Fila de reprodução vazia</li>';
+        } else {
+            state.playlist.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>🎬 Vídeo #${index + 1} na Fila</span> <span>Pronto</span>`;
+                playlistItems.appendChild(li);
+            });
+        }
     }
 
     // Sync online users count in top banner
     document.getElementById('online-count').innerText = `${state.users.length} online`;
+
+    // Sync host indicator next to online status
+    const hostUser = state.users.find(u => u.isHost);
+    const hostIndicator = document.getElementById('host-indicator');
+    if (hostIndicator) {
+        if (hostUser) {
+            hostIndicator.innerHTML = `👑 ${hostUser.name}`;
+            hostIndicator.style.display = 'inline';
+        } else {
+            hostIndicator.style.display = 'none';
+        }
+    }
 
     // Sync live chat logs
     chatMessages.innerHTML = '';
     state.chatHistory.forEach(msg => {
         const div = document.createElement('div');
         div.className = 'message';
-        div.innerHTML = `<span class="msg-user" style="color:${msg.color}">${msg.user}:</span> <span class="msg-text">${msg.text}</span>`;
+        div.style.marginBottom = '10px';
+        div.style.display = 'flex';
+        div.style.alignItems = 'flex-start';
+        div.style.gap = '8px';
+
+        const avatarHtml = getAvatarHtml(msg.avatar, msg.color);
+
+        div.innerHTML = `
+            ${avatarHtml}
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;">
+                <span class="msg-user" style="color:${msg.color}; font-weight: 700; font-size: 0.72rem; line-height: 1.1; margin-top: 1px;">${msg.user}</span>
+                <span class="msg-text" style="word-break: break-all; font-size: 0.72rem; line-height: 1.4; color: #e4e4e7;">${msg.text}</span>
+            </div>
+        `;
         chatMessages.appendChild(div);
     });
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -507,6 +662,44 @@ socket.on('gameReset', () => {
     chatMessages.innerHTML = '<div class="system-msg">Nova rodada iniciada pelo Host!</div>';
 });
 
+// Listener de Reações Flutuantes no Chat
+socket.on('newReaction', (emoji) => {
+    createFloatingEmoji(emoji);
+});
+
+function createFloatingEmoji(emoji) {
+    if (!chatMessages) return;
+
+    const span = document.createElement('span');
+    span.innerText = emoji;
+    span.style.position = 'absolute';
+    span.style.bottom = '10px';
+    span.style.fontSize = '1.8rem';
+    span.style.pointerEvents = 'none';
+    span.style.zIndex = '100';
+    span.style.transition = 'transform 4.5s cubic-bezier(0.1, 0.4, 0.2, 1), opacity 4.5s ease-out';
+    span.style.opacity = '1';
+    span.style.transform = 'translateY(0) scale(1)';
+
+    // Posição horizontal randômica de spawn no chat (10% a 90%)
+    const randomLeft = Math.floor(Math.random() * 80) + 10;
+    span.style.left = `${randomLeft}%`;
+
+    chatMessages.appendChild(span);
+
+    // Inicia a animação no próximo frame
+    setTimeout(() => {
+        const randomDriftX = Math.floor(Math.random() * 100) - 50; // Desvio horizontal mais fluido
+        span.style.transform = `translate(${randomDriftX}px, -280px) scale(1.5)`;
+        span.style.opacity = '0';
+    }, 50);
+
+    // Remove do DOM após completar a animação
+    setTimeout(() => {
+        span.remove();
+    }, 4600);
+}
+
 // --- LIVE CHAT SENDER & MESSAGES ---
 sendChatBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', (e) => {
@@ -516,7 +709,7 @@ chatInput.addEventListener('keypress', (e) => {
 function sendMessage() {
     const text = chatInput.value.trim();
     if (text) {
-        socket.emit('sendMessage', text);
+        socket.emit('sendMessage', text.substring(0, 200));
         chatInput.value = '';
     }
 }
@@ -524,7 +717,21 @@ function sendMessage() {
 socket.on('newMessage', (msg) => {
     const div = document.createElement('div');
     div.className = 'message';
-    div.innerHTML = `<span class="msg-user" style="color:${msg.color}">${msg.user}:</span> <span class="msg-text">${msg.text}</span>`;
+    div.style.marginBottom = '10px';
+    div.style.display = 'flex';
+    div.style.alignItems = 'flex-start';
+    div.style.gap = '8px';
+
+    const avatarHtml = getAvatarHtml(msg.avatar, msg.color);
+
+    div.innerHTML = `
+        ${avatarHtml}
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;">
+            <span class="msg-user" style="color:${msg.color}; font-weight: 700; font-size: 0.72rem; line-height: 1.1; margin-top: 1px;">${msg.user}</span>
+            <span class="msg-text" style="word-break: break-all; font-size: 0.72rem; line-height: 1.4; color: #e4e4e7;">${msg.text}</span>
+        </div>
+    `;
+
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
@@ -532,4 +739,347 @@ socket.on('newMessage', (msg) => {
 // Standard Alert messages
 socket.on('errorMsg', (msg) => {
     alert(msg);
+});
+
+// --- MENU DE OPÇÕES E ACERVO (LOCAL STORAGE) ---
+const optionsModal = document.getElementById('options-modal');
+const optionsModalCard = document.getElementById('options-modal-card');
+const optionsMainMenu = document.getElementById('options-main-menu');
+const optionsAcervoPanel = document.getElementById('options-acervo-panel');
+const openAcervoBtn = document.getElementById('open-acervo-btn');
+const modalLogoutBtn = document.getElementById('modal-logout-btn');
+const backToMenuBtn = document.getElementById('back-to-menu-btn');
+
+const acervoInput = document.getElementById('acervo-input');
+const saveAcervoBtn = document.getElementById('save-acervo-btn');
+const acervoList = document.getElementById('acervo-list');
+
+// Fecha o modal ao clicar fora do card de opções
+if (optionsModal) {
+    optionsModal.addEventListener('click', (e) => {
+        if (e.target === optionsModal) {
+            optionsModal.classList.add('hidden');
+        }
+    });
+}
+
+function extractYoutubeId(url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+
+async function getAcervo() {
+    if (!myUser || !myUser.id) return [];
+    try {
+        const res = await fetch(`/api/acervo?user_id=${myUser.id}`);
+        const data = await res.json();
+        return data.list || [];
+    } catch(err) {
+        console.error('Erro ao buscar acervo:', err);
+        return [];
+    }
+}
+
+async function addAcervoItem(url, title, thumbnail) {
+    if (!myUser || !myUser.id) return;
+    try {
+        await fetch('/api/acervo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: myUser.id, url, title, thumbnail })
+        });
+    } catch(err) {
+        console.error('Erro ao salvar no acervo:', err);
+    }
+}
+
+async function deleteAcervoItem(url) {
+    if (!myUser || !myUser.id) return;
+    try {
+        await fetch('/api/acervo', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: myUser.id, url })
+        });
+    } catch(err) {
+        console.error('Erro ao deletar do acervo:', err);
+    }
+}
+
+async function renderAcervo() {
+    if (!acervoList) return;
+    acervoList.innerHTML = '';
+    const list = await getAcervo();
+    
+    if (list.length === 0) {
+        acervoList.innerHTML = `<p style="font-size: 0.75rem; color: var(--text-dim); text-align: center; padding: 12px; margin: 0;">Seu acervo está vazio!</p>`;
+        return;
+    }
+    
+    list.forEach((item) => {
+        const div = document.createElement('div');
+        div.style.width = '100%';
+        
+        div.innerHTML = `
+            <div class="acervo-item" style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 10px; padding: 6px; width: 100%; box-sizing: border-box; margin-bottom: 6px;">
+                <img src="${item.thumbnail}" style="width: 54px; height: 36px; border-radius: 6px; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.05);" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22 viewBox=%220 0 120 90%22><defs><linearGradient id=%22g%22 x1=%220%25%22 y1=%220%25%22 x2=%22100%25%22 y2=%22100%25%22><stop offset=%220%25%22 stop-color=%22%231e1e24%22/><stop offset=%22100%25%22 stop-color=%22%230f0f12%22/></linearGradient></defs><rect width=%22120%22 height=%2290%22 rx=%2210%22 fill=%22url(%23g)%22/><polygon points=%2250,35 75,45 50,55%22 fill=%22%2300f2ea%22/></svg>'">
+                <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0; gap: 4px; text-align: left;">
+                    <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${item.title}">${item.title}</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="use-acervo-btn" data-url="${item.url}" style="background: var(--accent-cyan); color: #000; border: none; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease;">Fila</button>
+                        <button class="delete-acervo-btn" data-url="${item.url}" style="background: rgba(255,0,0,0.1); color: var(--accent-pink); border: 1px solid rgba(255,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; cursor: pointer; transition: transform 0.1s ease;">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Wire add to queue button click
+        div.querySelector('.use-acervo-btn').addEventListener('click', (e) => {
+            const url = e.target.getAttribute('data-url');
+            socket.emit('addVideo', url);
+            if (optionsModal) optionsModal.classList.add('hidden');
+        });
+        
+        // Wire delete button click
+        div.querySelector('.delete-acervo-btn').addEventListener('click', async (e) => {
+            const url = e.currentTarget.getAttribute('data-url');
+            await deleteAcervoItem(url);
+            renderAcervo();
+        });
+        
+        acervoList.appendChild(div);
+    });
+}
+
+if (openAcervoBtn) {
+    openAcervoBtn.addEventListener('click', () => {
+        if (optionsMainMenu) optionsMainMenu.classList.add('hidden');
+        if (optionsAcervoPanel) optionsAcervoPanel.classList.remove('hidden');
+        if (optionsModalCard) optionsModalCard.style.width = '300px';
+        renderAcervo();
+    });
+}
+
+if (backToMenuBtn) {
+    backToMenuBtn.addEventListener('click', () => {
+        if (optionsMainMenu) optionsMainMenu.classList.remove('hidden');
+        if (optionsAcervoPanel) optionsAcervoPanel.classList.add('hidden');
+        if (optionsModalCard) optionsModalCard.style.width = '180px';
+    });
+}
+
+if (modalLogoutBtn) {
+    modalLogoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('cinema_das_guria_user');
+        window.location.reload();
+    });
+}
+
+if (saveAcervoBtn) {
+    saveAcervoBtn.addEventListener('click', async () => {
+        const url = acervoInput.value.trim();
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+            const currentList = await getAcervo();
+            if (currentList.some(item => item.url === url)) {
+                alert('Esse link já está no seu acervo!');
+                return;
+            }
+
+            saveAcervoBtn.innerText = '...';
+            saveAcervoBtn.disabled = true;
+
+            // Fallback padrão
+            let title = 'Vídeo (' + new URL(url).hostname + ')';
+            const ytId = extractYoutubeId(url);
+            let thumbnail = ytId
+                ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`
+                : `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%231e1e24"/><stop offset="100%" stop-color="%230f0f12"/></linearGradient></defs><rect width="120" height="90" rx="10" fill="url(%23g)"/><polygon points="50,35 75,45 50,55" fill="%2300f2ea"/></svg>`;
+
+            if (ytId) {
+                title = 'Vídeo do YouTube';
+            } else {
+                try {
+                    const parsed = new URL(url);
+                    const parts = parsed.pathname.split('/');
+                    const filename = parts[parts.length - 1];
+                    if (filename) title = decodeURIComponent(filename);
+                } catch(e) {}
+            }
+
+            // Tenta obter oEmbed CORS-free com noembed
+            try {
+                const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.title) title = data.title;
+                    if (data.thumbnail_url) thumbnail = data.thumbnail_url;
+                }
+            } catch(err) {
+                console.log('Sem oEmbed, usando fallbacks locais:', err);
+            }
+
+            // Salvar no banco do usuário
+            await addAcervoItem(url, title, thumbnail);
+
+            acervoInput.value = '';
+            saveAcervoBtn.innerText = 'Salvar';
+            saveAcervoBtn.disabled = false;
+            renderAcervo();
+        } else {
+            alert('Por favor, digite um link de vídeo válido (começando com http/https).');
+        }
+    });
+}
+
+if (acervoInput) {
+    acervoInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            if (saveAcervoBtn) saveAcervoBtn.click();
+        }
+    });
+}
+
+// --- CONTROLE DE EDIÇÃO DE PERFIL ---
+const openEditBtn = document.getElementById('open-edit-btn');
+const optionsEditPanel = document.getElementById('options-edit-panel');
+const editBackToMenuBtn = document.getElementById('edit-back-to-menu-btn');
+const editNameInput = document.getElementById('edit-name-input');
+const editAvatarPreview = document.getElementById('edit-avatar-preview');
+const editAvatarFile = document.getElementById('edit-avatar-file');
+const btnTriggerEditFile = document.getElementById('btn-trigger-edit-file');
+const editPreviewPlaceholder = document.getElementById('edit-preview-placeholder');
+const editPreviewImg = document.getElementById('edit-preview-img');
+const saveProfileBtn = document.getElementById('save-profile-btn');
+const presetAvatarsGrid = document.getElementById('preset-avatars-grid');
+const editBgColor = document.getElementById('edit-bg-color');
+
+let selectedAvatarEmoji = null;
+
+if (openEditBtn) {
+    openEditBtn.addEventListener('click', () => {
+        if (optionsMainMenu) optionsMainMenu.classList.add('hidden');
+        if (optionsEditPanel) optionsEditPanel.classList.remove('hidden');
+        if (optionsModalCard) optionsModalCard.style.width = '300px';
+
+        // Carregar valores atuais
+        editNameInput.value = myUser.name || '';
+        
+        const currentAvatar = myUser.avatar || '';
+        if (currentAvatar.startsWith('data:image') || currentAvatar.startsWith('http')) {
+            editPreviewImg.src = currentAvatar;
+            editPreviewImg.style.display = 'block';
+            editPreviewPlaceholder.style.display = 'none';
+            selectedAvatarEmoji = currentAvatar;
+        } else {
+            editPreviewImg.style.display = 'none';
+            editPreviewPlaceholder.textContent = currentAvatar || '👤';
+            editPreviewPlaceholder.style.display = 'block';
+            selectedAvatarEmoji = currentAvatar || null;
+        }
+
+        // Carregar cor de fundo atual no input color
+        const currentBg = localStorage.getItem('cinema_das_guria_bg') || '#0a0a0c';
+        editBgColor.value = currentBg;
+    });
+}
+
+if (editBackToMenuBtn) {
+    editBackToMenuBtn.addEventListener('click', () => {
+        if (optionsMainMenu) optionsMainMenu.classList.remove('hidden');
+        if (optionsEditPanel) optionsEditPanel.classList.add('hidden');
+        if (optionsModalCard) optionsModalCard.style.width = '180px';
+    });
+}
+
+// Disparador de Seleção de Imagem do Dispositivo
+if (editAvatarPreview) {
+    editAvatarPreview.addEventListener('click', () => editAvatarFile.click());
+}
+if (btnTriggerEditFile) {
+    btnTriggerEditFile.addEventListener('click', () => editAvatarFile.click());
+}
+
+if (editAvatarFile) {
+    editAvatarFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        compressImageFile(file, 128, 128, 0.7, (base64Url) => {
+            selectedAvatarEmoji = base64Url;
+
+            // Atualiza a visualização
+            editPreviewImg.src = base64Url;
+            editPreviewImg.style.display = 'block';
+            editPreviewPlaceholder.style.display = 'none';
+        });
+    });
+}
+
+
+// Salvar as Alterações de Perfil
+if (saveProfileBtn) {
+    saveProfileBtn.addEventListener('click', () => {
+        const newName = editNameInput.value.trim();
+        if (!newName) {
+            alert('Por favor, insira um nome de usuário válido!');
+            return;
+        }
+
+        let newAvatar = selectedAvatarEmoji || null;
+
+        // Salvar nas configurações locais do usuário
+        myUser.name = newName;
+        myUser.avatar = newAvatar;
+        const newBg = editBgColor.value;
+        myUser.bg_color = newBg;
+        localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+
+        // Aplicar e salvar a cor de fundo do site
+        document.documentElement.style.setProperty('--bg-dark', newBg);
+        localStorage.setItem('cinema_das_guria_bg', newBg);
+
+        // Notificar servidor via Websocket
+        socket.emit('updateProfile', {
+            name: newName,
+            avatar: newAvatar,
+            bg_color: newBg
+        });
+
+        updateCurrentUserTag();
+
+        // Fechar modal
+        if (optionsModal) optionsModal.classList.add('hidden');
+    });
+}
+
+// Toggle menu de reações e cliques fora dele
+const reactionToggleBtn = document.getElementById('reaction-toggle-btn');
+const reactionMenu = document.getElementById('reaction-menu');
+
+if (reactionToggleBtn && reactionMenu) {
+    reactionToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        reactionMenu.classList.toggle('hidden');
+    });
+
+    // Fechar menu de reações ao clicar fora
+    document.addEventListener('click', (e) => {
+        if (reactionMenu && !reactionMenu.contains(e.target) && e.target !== reactionToggleBtn) {
+            reactionMenu.classList.add('hidden');
+        }
+    });
+}
+
+// Ativar as Reações Flutuantes no Clique
+document.querySelectorAll('.reaction-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const emoji = e.currentTarget.getAttribute('data-emoji');
+        if (emoji) {
+            socket.emit('sendReaction', emoji);
+        }
+        if (reactionMenu) {
+            reactionMenu.classList.add('hidden');
+        }
+    });
 });

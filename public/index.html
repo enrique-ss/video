@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TikTok Cinema</title>
+    <title>Cinema das Guria</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,7 @@
     <!-- Login Overlay -->
     <div id="login-overlay" class="overlay">
         <div class="glass-card login-card">
-            <h1 class="brand-title">Cinema 🎬</h1>
+            <h1 class="brand-title">Cinema das Guria 🎬</h1>
             <p class="brand-subtitle">Faça login para assistir e palpitar</p>
             <input type="email" id="login-email" placeholder="E-mail..." required>
             <input type="password" id="login-password" placeholder="Senha..." required>
@@ -25,9 +25,28 @@
 
     <!-- Register Overlay (Oculto por padrão) -->
     <div id="register-overlay" class="overlay hidden">
-        <div class="glass-card login-card">
-            <h1 class="brand-title">Cinema 🎬</h1>
+        <div class="glass-card login-card" style="max-width: 380px;">
+            <h1 class="brand-title">Cinema das Guria 🎬</h1>
             <p class="brand-subtitle">Crie sua conta para participar</p>
+            
+            <!-- Foto de Perfil (Avatar Selection na criação) -->
+            <div style="display: flex; flex-direction: column; gap: 4px; text-align: left; margin: 10px 0; width: 100%;">
+                <label style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; margin-left: 2px;">Foto de Perfil</label>
+                
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <!-- Circular Preview for Device Upload -->
+                    <div id="register-avatar-preview" style="width: 52px; height: 52px; border-radius: 50%; border: 2px dashed var(--card-border); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.02); flex-shrink: 0;" title="Escolher foto do dispositivo">
+                        <span id="register-preview-placeholder" style="font-size: 1.3rem;">👤</span>
+                        <img id="register-preview-img" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                    </div>
+                    <input type="file" id="register-avatar-file" accept="image/*" style="display: none;">
+                    
+                    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+                        <button type="button" id="btn-trigger-register-file" class="acervo-control-btn" style="padding: 5px 10px; font-size: 0.65rem; width: fit-content; background: rgba(255,255,255,0.05);">Upload do Dispositivo</button>
+                    </div>
+                </div>
+            </div>
+
             <input type="text" id="register-name" placeholder="Seu nome..." maxlength="15" required>
             <input type="email" id="register-email" placeholder="E-mail..." required>
             <input type="password" id="register-password" placeholder="Senha..." required>
@@ -40,7 +59,6 @@
     <div class="mobile-frame">
         <header class="app-header">
             <div class="header-left">
-                <span class="app-logo">🍿</span>
                 <!-- Sleek inline input inside the header for adding videos -->
                 <div class="header-input-wrapper">
                     <input type="text" id="tiktok-url" placeholder="Adicionar link...">
@@ -50,8 +68,7 @@
                 <button id="start-game-btn" class="header-start-btn" style="display: none;">Iniciar ➔</button>
             </div>
             <div class="header-right">
-                <div id="current-user-tag" class="user-tag"></div>
-                <button id="logout-btn" class="logout-btn" title="Sair">🚪</button>
+                <div id="current-user-tag" class="user-tag" title="Clique para sair"></div>
             </div>
         </header>
 
@@ -70,16 +87,50 @@
             <div class="chat-viewport glass-card">
                 <div class="chat-header-slim">
                     <span>🎬 Fila: <strong id="queue-count">0</strong> vídeos</span>
+                    <span id="host-indicator" class="host-indicator" style="display: none;" title="Host da sala"></span>
                     <span class="online-indicator" id="online-count">0 online</span>
                 </div>
                 
                 <div class="chat-messages" id="chat-messages">
-                    <div class="system-msg">Bem-vindo ao TikTok Cinema!</div>
+                    <div class="system-msg">Bem-vindo ao Cinema das Guria!</div>
                 </div>
                 
                 <div class="chat-input-bar">
-                    <input type="text" id="chat-input" placeholder="Comente aqui...">
-                    <button id="send-chat-btn">➔</button>
+                    <input type="text" id="chat-input" placeholder="Comente aqui..." maxlength="200">
+                    <div style="position: relative; display: flex; gap: 6px;">
+                        <button id="reaction-toggle-btn" style="width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; transition: all 0.15s ease;">😊</button>
+                        
+                        <!-- Popover Menu com a grade rica de Emojis (Grid 5x5 Centralizado) -->
+                        <div id="reaction-menu" class="hidden" style="position: absolute; bottom: 38px; right: 0; background: rgba(15, 15, 20, 0.95); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; width: 210px; box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index: 1000; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; justify-items: center; align-items: center;">
+                            <button class="reaction-btn" data-emoji="❤️" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">❤️</button>
+                            <button class="reaction-btn" data-emoji="😂" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😂</button>
+                            <button class="reaction-btn" data-emoji="😮" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😮</button>
+                            <button class="reaction-btn" data-emoji="🎉" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🎉</button>
+                            <button class="reaction-btn" data-emoji="🔥" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🔥</button>
+                            <button class="reaction-btn" data-emoji="👍" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">👍</button>
+                            <button class="reaction-btn" data-emoji="💩" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">💩</button>
+                            <button class="reaction-btn" data-emoji="🤡" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🤡</button>
+                            <button class="reaction-btn" data-emoji="🚀" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🚀</button>
+                            <button class="reaction-btn" data-emoji="😱" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😱</button>
+                            <button class="reaction-btn" data-emoji="😭" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😭</button>
+                            <button class="reaction-btn" data-emoji="😎" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😎</button>
+                            <button class="reaction-btn" data-emoji="🤔" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🤔</button>
+                            <button class="reaction-btn" data-emoji="💅" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">💅</button>
+                            <button class="reaction-btn" data-emoji="👏" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">👏</button>
+                            <button class="reaction-btn" data-emoji="🥳" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🥳</button>
+                            <button class="reaction-btn" data-emoji="👽" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">👽</button>
+                            <button class="reaction-btn" data-emoji="💀" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">💀</button>
+                            <button class="reaction-btn" data-emoji="🦄" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🦄</button>
+                            <button class="reaction-btn" data-emoji="🎈" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🎈</button>
+                            <button class="reaction-btn" data-emoji="👑" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">👑</button>
+                            <button class="reaction-btn" data-emoji="👀" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">👀</button>
+                            <button class="reaction-btn" data-emoji="🍕" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🍕</button>
+                            <button class="reaction-btn" data-emoji="🍷" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🍷</button>
+                            <button class="reaction-btn" data-emoji="🌟" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🌟</button>
+                        </div>
+                        
+                        <button id="send-chat-btn">➔</button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -109,7 +160,81 @@
         </div>
     </div>
 
+    <!-- Options & Acervo Modal (Ultra-Minimalist Popover) -->
+    <div id="options-modal" class="overlay hidden">
+        <div id="options-modal-card" class="glass-card options-popover-card" style="width: 180px; padding: 12px; display: flex; flex-direction: column; gap: 8px; text-align: center; border-radius: 14px;">
+            <!-- Main Menu Buttons -->
+            <div id="options-main-menu" class="options-menu-container" style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                <button id="open-acervo-btn" class="minimal-menu-btn">Acervo</button>
+                <button id="open-edit-btn" class="minimal-menu-btn">Editar</button>
+                <button id="modal-logout-btn" class="minimal-menu-btn delete-style">Sair</button>
+            </div>
+            
+            <!-- Acervo Panel (Hidden by default) -->
+            <div id="options-acervo-panel" class="options-menu-container hidden" style="display: flex; flex-direction: column; width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; width: 100%;">
+                    <span style="font-weight: 700; font-size: 0.75rem; color: var(--text-main); margin-left: 2px;">Acervo</span>
+                    <button id="back-to-menu-btn" class="acervo-control-btn">Voltar</button>
+                </div>
+                
+                <!-- Input to add to Acervo -->
+                <div style="display: flex; gap: 4px; margin-bottom: 8px; width: 100%;">
+                    <input type="text" id="acervo-input" placeholder="Novo link..." style="flex-grow: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 6px 8px; border-radius: 6px; color: var(--text-main); font-size: 0.75rem; outline: none; width: 60%;">
+                    <button id="save-acervo-btn" class="use-acervo-btn" style="padding: 0 8px; font-size: 0.7rem; margin: 0; background: var(--accent-cyan); color: #000; border-radius: 6px; border: none; font-weight: 700; cursor: pointer;">Salvar</button>
+                </div>
+                
+                <!-- Saved links list -->
+                <div id="acervo-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                    <!-- Items will be injected dynamically -->
+                </div>
+            </div>
+
+            <!-- Edit Panel (Hidden by default) -->
+            <div id="options-edit-panel" class="options-menu-container hidden" style="display: flex; flex-direction: column; width: 100%; text-align: left; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; width: 100%;">
+                    <span style="font-weight: 700; font-size: 0.75rem; color: var(--text-main); margin-left: 2px;">Editar Perfil</span>
+                    <button id="edit-back-to-menu-btn" class="acervo-control-btn">Voltar</button>
+                </div>
+                
+                <!-- Nome -->
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; margin-left: 2px;">Nome de Usuário</label>
+                    <input type="text" id="edit-name-input" placeholder="Seu nome..." style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 6px 8px; border-radius: 6px; color: var(--text-main); font-size: 0.75rem; outline: none; width: 100%;">
+                </div>
+                
+                <!-- Foto de Perfil (Avatar Selection) -->
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+                    <label style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; margin-left: 2px;">Foto de Perfil</label>
+                    
+                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 4px;">
+                        <!-- Circular Preview for Device Upload -->
+                        <div id="edit-avatar-preview" style="width: 48px; height: 48px; border-radius: 50%; border: 2px dashed var(--card-border); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.02); flex-shrink: 0;" title="Escolher foto do dispositivo">
+                            <span id="edit-preview-placeholder" style="font-size: 1.2rem;">👤</span>
+                            <img id="edit-preview-img" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                        </div>
+                        <input type="file" id="edit-avatar-file" accept="image/*" style="display: none;">
+                        
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <button type="button" id="btn-trigger-edit-file" class="acervo-control-btn" style="padding: 4px 8px; font-size: 0.65rem;">Carregar Foto</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Cor de Fundo do Site -->
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+                    <label style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; margin-left: 2px;">Cor de Fundo do Site</label>
+                    <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
+                        <input type="color" id="edit-bg-color" style="width: 36px; height: 26px; padding: 0; border: 1px solid var(--card-border); border-radius: 6px; background: transparent; cursor: pointer; flex-shrink: 0; outline: none;">
+                        <span style="font-size: 0.7rem; color: var(--text-dim);">Mude a cor de fundo do seu cinema</span>
+                    </div>
+                </div>
+                
+                <!-- Salvar Alterações -->
+                <button id="save-profile-btn" class="use-acervo-btn" style="margin-top: 6px; width: 100%; height: 32px; background: var(--accent-cyan); color: #000; border-radius: 6px; border: none; font-weight: 700; cursor: pointer; font-size: 0.75rem;">Salvar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/app.js"></script>
-    <script async src="https://www.tiktok.com/embed.js"></script>
 </body>
 </html>
