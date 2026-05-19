@@ -560,15 +560,44 @@ io.on('connection', (socket) => {
         const { data } = await supabase.from('users').select('*').eq('id', userData.id).single();
         dbUser = data;
       } catch (err) {}
-    } else if (offlineDb) {
-      try {
-        dbUser = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userData.id);
-      } catch (err) {}
-    }
 
-    if (!dbUser) {
-      socket.emit('forceLogout', 'Usuário não cadastrado. Por favor, crie uma conta.');
-      return;
+      if (!dbUser) {
+        socket.emit('forceLogout', 'Usuário não cadastrado. Por favor, crie uma conta.');
+        return;
+      }
+    } else {
+      // Modo offline (local testing): Se o usuário não existir no SQLite local, 
+      // nós o registramos automaticamente para evitar forceLogout durante os testes de desenvolvimento!
+      if (offlineDb) {
+        try {
+          dbUser = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userData.id);
+          if (!dbUser) {
+            const insert = offlineDb.prepare(`
+              INSERT OR IGNORE INTO users (id, name, email, password_hash, avatar, bg_color, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `);
+            insert.run(
+              userData.id, 
+              userData.name || 'Jogador Local', 
+              null, 
+              'offline-session', 
+              userData.avatar || null, 
+              userData.bg_color || '#0a0a0c', 
+              new Date().toISOString()
+            );
+            dbUser = {
+              id: userData.id,
+              name: userData.name || 'Jogador Local',
+              avatar: userData.avatar || null,
+              bg_color: userData.bg_color || '#0a0a0c'
+            };
+          }
+        } catch (err) {
+          dbUser = userData;
+        }
+      } else {
+        dbUser = userData;
+      }
     }
 
     let user = Object.values(cinemaState.users).find(u => u.id === dbUser.id);
