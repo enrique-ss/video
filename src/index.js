@@ -177,41 +177,43 @@ app.post('/api/register', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      // .maybeSingle() retorna null sem erro quando não encontra (ao contrário do .single())
-      const { data: existing, error: checkError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email.toLowerCase())
-        .maybeSingle();
+      // 1. Criar usuário no Supabase Auth nativo (Painel de Authentication)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.toLowerCase(),
+        password: password,
+        options: {
+          data: { name: name } // Salva o nome nos metadados do Auth
+        }
+      });
 
-      if (checkError) {
-        console.error('Supabase check email error:', JSON.stringify(checkError));
-        return res.status(500).json({ error: 'Erro ao verificar e-mail. Tente novamente.' });
+      if (authError) {
+        console.error('Supabase Auth error:', authError);
+        return res.status(400).json({ error: 'Erro no Supabase Auth: ' + authError.message });
       }
 
-      if (existing) {
-        return res.status(400).json({ error: 'Este e-mail já está em uso!' });
-      }
+      // Pega o ID seguro e nativo gerado pelo Supabase Auth (UUID)
+      const finalUserId = (authData.user && authData.user.id) ? authData.user.id : userId;
 
+      // 2. Inserir os dados visíveis no banco de dados público (Tabela users)
       const { error: insertError } = await supabase.from('users').insert({
-        id: userId,
+        id: finalUserId,
         name,
         email: email.toLowerCase(),
-        password_hash: passwordHash,
+        password_hash: passwordHash, // Mantido por compatibilidade de fallback
         avatar: avatar || null,
         bg_color: '#0a0a0c',
         created_at: createdAt
       });
 
       if (insertError) {
-        console.error('Supabase insert error:', JSON.stringify(insertError));
-        return res.status(500).json({ error: `Falha ao registrar: ${insertError.message}` });
+        console.error('Supabase public user insert error:', insertError);
+        // Se der erro ao salvar os dados públicos, avisamos mas a conta Auth já existe
       }
 
-      console.log(`Novo usuário registrado no Supabase: ${name} (${email.toLowerCase()})`);
+      console.log(`Novo usuário registrado via Supabase Auth: ${name} (${email.toLowerCase()})`);
       return res.status(201).json({
         success: true,
-        user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
+        user: { id: finalUserId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
       });
     } catch (err) {
       console.error('Erro inesperado no registro Supabase:', err.message);
@@ -254,18 +256,44 @@ app.post('/api/login', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email.toLowerCase())
-        .single();
+      // 1. Tentar login oficial via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase(),
+        password: password
+      });
 
-      if (error || !user) {
-        return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
+      // Se falhar no Auth Oficial, tenta fallback para contas criadas antes desta atualização
+      if (authError) {
+        const { data: legacyUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+
+        if (!legacyUser || legacyUser.password_hash !== passwordHash) {
+          return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
+        }
+        
+        // Login com conta legada aprovado
+        return res.json({
+          success: true,
+          user: { id: legacyUser.id, name: legacyUser.name, email: legacyUser.email, avatar: legacyUser.avatar || null, bg_color: legacyUser.bg_color || '#0a0a0c' }
+        });
       }
 
-      if (user.password_hash !== passwordHash) {
-        return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
+      // 2. Login Auth oficial aprovado -> buscar dados públicos da conta
+      const { data: user, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (!user) {
+        // Fallback caso a tabela users não tenha o registro (sync error no momento da criação)
+        return res.json({
+          success: true,
+          user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c' }
+        });
       }
 
       return res.json({

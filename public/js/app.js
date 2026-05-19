@@ -249,6 +249,14 @@ btnSubmitLogin.addEventListener('click', async () => {
     }
 });
 
+// --- RECONNECT & SESSION SYNC ---
+socket.on('connect', () => {
+    // Se o usuário já estiver logado/registrado em memória, garante que o server saiba seu novo socket.id
+    if (myUser && myUser.id) {
+        socket.emit('join', myUser);
+    }
+});
+
 // --- SESSION CONTROL (TK-06 & TK-07) ---
 const savedUser = localStorage.getItem('cinema_das_guria_user');
 if (savedUser) {
