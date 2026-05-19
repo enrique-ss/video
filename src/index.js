@@ -57,6 +57,36 @@ const supabase = supabaseEnabled
   ? createClient(process.env.SUPABASE_URL, supabaseKey)
   : null;
 
+function getSupabaseClient(req) {
+  if (!supabaseEnabled) return null;
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    return createClient(process.env.SUPABASE_URL, supabaseKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    });
+  }
+  return supabase;
+}
+
+function getSupabaseSocketClient(token) {
+  if (!supabaseEnabled) return null;
+  if (token) {
+    return createClient(process.env.SUPABASE_URL, supabaseKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    });
+  }
+  return supabase;
+}
+
 // 15 Cores exclusivas e vibrantes para os usuários (garante alta visibilidade em ambos os temas)
 const PREDEFINED_COLORS = [
   '#ff0050', // Rosa Neon
@@ -389,7 +419,8 @@ app.get('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { data: list, error } = await supabase
+      const client = getSupabaseClient(req);
+      const { data: list, error } = await client
         .from('acervo')
         .select('*')
         .eq('user_id', user_id)
@@ -432,7 +463,8 @@ app.post('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { error } = await supabase
+      const client = getSupabaseClient(req);
+      const { error } = await client
         .from('acervo')
         .insert({
           user_id,
@@ -484,7 +516,8 @@ app.delete('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { error } = await supabase
+      const client = getSupabaseClient(req);
+      const { error } = await client
         .from('acervo')
         .delete()
         .eq('user_id', user_id)
@@ -671,6 +704,7 @@ io.on('connection', (socket) => {
       user.name = userData.name || user.name;
       if (userData.avatar) user.avatar = userData.avatar;
       if (userData.bg_color) user.bg_color = userData.bg_color;
+      if (userData.token) user.token = userData.token;
       console.log(`Usuário ${user.name} reconectou sob socket ${socket.id}`);
     } else {
       // Criação de novo usuário ativo
@@ -691,7 +725,8 @@ io.on('connection', (socket) => {
         authMethod: userData.authMethod || 'email',
         color: assignedColor,
         avatar: userData.avatar || null,
-        bg_color: userData.bg_color || '#0a0a0c'
+        bg_color: userData.bg_color || '#0a0a0c',
+        token: userData.token || null
       };
 
       cinemaState.users[user.id] = user;
@@ -882,7 +917,8 @@ io.on('connection', (socket) => {
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {
       try {
-        const { error } = await supabase
+        const client = getSupabaseSocketClient(user.token);
+        const { error } = await client
           .from('users')
           .upsert({ 
             id: user.id, 

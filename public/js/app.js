@@ -960,7 +960,11 @@ function extractYoutubeId(url) {
 async function getAcervo() {
     if (!myUser || !myUser.id) return [];
     try {
-        const res = await fetch(`/api/acervo?user_id=${myUser.id}&_=${Date.now()}`);
+        const headers = {};
+        if (myUser.token) {
+            headers['Authorization'] = `Bearer ${myUser.token}`;
+        }
+        const res = await fetch(`/api/acervo?user_id=${myUser.id}&_=${Date.now()}`, { headers });
         if (!res.ok) {
             const errData = await res.json();
             console.error('Erro de API ao buscar acervo:', errData.error);
@@ -977,9 +981,13 @@ async function getAcervo() {
 async function addAcervoItem(url, title, thumbnail) {
     if (!myUser || !myUser.id) return;
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (myUser.token) {
+            headers['Authorization'] = `Bearer ${myUser.token}`;
+        }
         const res = await fetch('/api/acervo', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ user_id: myUser.id, url, title, thumbnail })
         });
         if (!res.ok) {
@@ -995,9 +1003,13 @@ async function addAcervoItem(url, title, thumbnail) {
 async function deleteAcervoItem(url) {
     if (!myUser || !myUser.id) return;
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (myUser.token) {
+            headers['Authorization'] = `Bearer ${myUser.token}`;
+        }
         const res = await fetch('/api/acervo', {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ user_id: myUser.id, url })
         });
         if (!res.ok) {
