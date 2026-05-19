@@ -24,7 +24,7 @@ body {
     font-family: var(--font-main);
     background: var(--bg-dark);
     color: var(--text-main);
-    min-height: 100vh;
+    min-height: 100dvh; /* dvh evita que a barra do celular corte o chat */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -35,13 +35,20 @@ body {
 .mobile-frame {
     width: 100%;
     max-width: 480px;
-    height: 100vh;
+    height: 100dvh; /* adaptativo para mobile */
     display: flex;
     flex-direction: column;
     background: var(--bg-dark);
     border-left: 1px solid var(--card-border);
     border-right: 1px solid var(--card-border);
     position: relative;
+}
+
+@media (max-width: 480px) {
+    .mobile-frame {
+        border-left: none;
+        border-right: none;
+    }
 }
 
 /* Glassmorphic General Cards */
@@ -53,6 +60,40 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
+
+/* Solid General Cards (Sem transparência) */
+.solid-card {
+    background: #121218; /* Cor escura sólida e imutável */
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    box-shadow: none; /* Sem sombras externas */
+}
+
+/* --- BRANDING FOOTER --- */
+.author-footer {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    width: 100%;
+}
+
+.insta-text {
+    background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+    text-decoration: none;
+    transition: filter 0.2s;
+}
+
+.insta-text:hover {
+    filter: brightness(1.2);
+}
+
 
 /* --- PREMIUM APP HEADER --- */
 .app-header {
@@ -190,7 +231,7 @@ body {
     flex-direction: column;
     padding: 10px;
     gap: 8px;
-    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
     overflow: hidden;
 }
 
@@ -250,7 +291,6 @@ body {
 .host-indicator {
     color: #ffd700; /* Gold Yellow */
     font-weight: 700;
-    text-shadow: 0 0 4px rgba(255, 215, 0, 0.2);
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -750,9 +790,10 @@ button#btn-submit-login, button#btn-submit-register, button#join-btn, .glow-btn 
 }
 
 .auth-card {
+    position: relative;
     width: 340px;
     height: 350px;
-    padding: 30px 24px 34px 24px;
+    padding: 30px 24px 50px 24px;
     background: rgba(18, 18, 24, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 20px;

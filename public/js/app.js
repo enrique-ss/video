@@ -78,9 +78,9 @@ function switchToTab(tab) {
     const card = document.querySelector('.auth-card');
     if (card) {
         if (tab === 'login') {
-            card.style.height = '350px';
+            card.style.height = '390px'; // Aumentado para caber o footer
         } else {
-            card.style.height = '500px';
+            card.style.height = '540px'; // Aumentado para caber o footer
         }
     }
 }
@@ -529,28 +529,34 @@ socket.on('syncState', (state) => {
 
     // Video Player execution
     if (state.status === 'PLAYING' && state.currentVideo) {
-        renderVideoPlayer(state.currentVideo.url, myUser.isHost);
-    } else if (state.status === 'LOBBY') {
-        videoWrapper.innerHTML = `
-            <div id="video-placeholder">
-                <p>Aguardando cinema iniciar...</p>
-                <small>Adicione links no cabeçalho acima!</small>
-            </div>
-        `;
-    } else if (state.status === 'VOTING') {
-        videoWrapper.innerHTML = `
-            <div id="video-placeholder">
-                <p>Fase de Palpites! 🤫</p>
-                <small>Quem você acha que escolheu o último vídeo?</small>
-            </div>
-        `;
-    } else if (state.status === 'PODIUM') {
-        videoWrapper.innerHTML = `
-            <div id="video-placeholder">
-                <p>Cinema Encerrado 🏆</p>
-                <small>Confira os vencedores no pódio final!</small>
-            </div>
-        `;
+        if (window.currentRenderedVideoUrl !== state.currentVideo.url) {
+            window.currentRenderedVideoUrl = state.currentVideo.url;
+            renderVideoPlayer(state.currentVideo.url, myUser.isHost);
+        }
+    } else {
+        window.currentRenderedVideoUrl = null; // Reseta estado do player quando não estiver tocando
+        if (state.status === 'LOBBY') {
+            videoWrapper.innerHTML = `
+                <div id="video-placeholder">
+                    <p>Aguardando cinema iniciar...</p>
+                    <small>Adicione links no cabeçalho acima!</small>
+                </div>
+            `;
+        } else if (state.status === 'VOTING') {
+            videoWrapper.innerHTML = `
+                <div id="video-placeholder">
+                    <p>Fase de Palpites! 🤫</p>
+                    <small>Quem você acha que escolheu o último vídeo?</small>
+                </div>
+            `;
+        } else if (state.status === 'PODIUM') {
+            videoWrapper.innerHTML = `
+                <div id="video-placeholder">
+                    <p>Cinema Encerrado 🏆</p>
+                    <small>Confira os vencedores no pódio final!</small>
+                </div>
+            `;
+        }
     }
 
     // Sync playlist count indicator inside Chat Header Slim
