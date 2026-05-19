@@ -316,19 +316,13 @@ function completeLogin(name, id, avatar, color, bg_color) {
     if (id) {
         myUser.id = id;
     }
-    if (avatar) {
-        myUser.avatar = avatar;
-    }
+    myUser.avatar = avatar || null;
     if (color) {
         myUser.color = color;
     } else if (!myUser.color) {
         myUser.color = '#' + Math.floor(Math.random()*16777215).toString(16);
     }
-    if (bg_color) {
-        myUser.bg_color = bg_color;
-    } else if (!myUser.bg_color) {
-        myUser.bg_color = '#0a0a0c';
-    }
+    myUser.bg_color = bg_color || '#0a0a0c';
 
     localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
     
@@ -350,8 +344,13 @@ function completeLogin(name, id, avatar, color, bg_color) {
 
 function updateCurrentUserTag() {
     if (currentUserTag) {
-        const avatarHtml = getAvatarHtml(myUser.avatar, myUser.color);
-        currentUserTag.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 6px;">${avatarHtml}<span>${myUser.name}</span></div>`;
+        const isImage = myUser.avatar && (myUser.avatar.startsWith('http') || myUser.avatar.startsWith('data:image'));
+        const avatarHtml = myUser.avatar 
+            ? (isImage 
+                ? '' // Fotos do dispositivo/link não aparecem no cabeçalho
+                : `<span style="font-size: 0.75rem; margin-right: 4px;">${myUser.avatar}</span>`) 
+            : '';
+        currentUserTag.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 4px;">${avatarHtml}<span>${myUser.name}</span></div>`;
     }
 }
 

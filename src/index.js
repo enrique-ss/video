@@ -292,6 +292,24 @@ app.post('/api/login', async (req, res) => {
 
       if (!user) {
         // Fallback caso a tabela users não tenha o registro (sync error no momento da criação)
+        // Garante a auto-criação na tabela pública para permitir que edições e fotos funcionem perfeitamente!
+        try {
+          const { error: autoInsertError } = await supabase.from('users').insert({
+            id: authData.user.id,
+            name: authData.user.user_metadata.name || 'Usuário',
+            email: authData.user.email,
+            password_hash: passwordHash, // Compatibilidade com fallback
+            avatar: null,
+            bg_color: '#0a0a0c',
+            created_at: new Date().toISOString()
+          });
+          if (autoInsertError) {
+            console.error('Erro ao auto-criar perfil público no Supabase durante login:', autoInsertError);
+          }
+        } catch (insertErr) {
+          console.error('Exceção ao auto-criar perfil público no Supabase:', insertErr.message);
+        }
+
         return res.json({
           success: true,
           user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c' }
@@ -770,12 +788,21 @@ io.on('connection', (socket) => {
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('users')
-          .update({ name: user.name, avatar: user.avatar, bg_color: data.bg_color || '#0a0a0c' })
-          .eq('id', user.id);
+          .upsert({ 
+            id: user.id, 
+            name: user.name, 
+            avatar: user.avatar, 
+            bg_color: data.bg_color || '#0a0a0c',
+            created_at: new Date().toISOString()
+          });
+        
+        if (error) {
+          console.error('Erro de banco ao atualizar/salvar perfil no Supabase:', error.message || error);
+        }
       } catch (err) {
-        console.error('Erro ao atualizar perfil no Supabase:', err.message);
+        console.error('Erro inesperado ao atualizar perfil no Supabase:', err.message);
       }
     } else if (offlineDb) {
       try {
