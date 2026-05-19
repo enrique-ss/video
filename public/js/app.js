@@ -55,18 +55,57 @@ const registerPassword = document.getElementById('register-password');
 const btnSubmitRegister = document.getElementById('btn-submit-register');
 const linkToLogin = document.getElementById('link-to-login');
 
-// Toggle between Login and Register Overlays
-linkToRegister.addEventListener('click', (e) => {
-    e.preventDefault();
-    loginOverlay.classList.add('hidden');
-    registerOverlay.classList.remove('hidden');
-});
+// Sliding tabs elements
+const tabLoginBtn = document.getElementById('tab-login-btn');
+const tabRegisterBtn = document.getElementById('tab-register-btn');
+const authTabSlider = document.getElementById('auth-tab-slider');
+const authFormsSlider = document.getElementById('auth-forms-slider');
 
-linkToLogin.addEventListener('click', (e) => {
-    e.preventDefault();
-    registerOverlay.classList.add('hidden');
-    loginOverlay.classList.remove('hidden');
-});
+function switchToTab(tab) {
+    if (tab === 'login') {
+        if (authTabSlider) authTabSlider.style.transform = 'translateX(0)';
+        if (authFormsSlider) authFormsSlider.style.transform = 'translateX(0)';
+        if (tabLoginBtn) tabLoginBtn.classList.add('active');
+        if (tabRegisterBtn) tabRegisterBtn.classList.remove('active');
+    } else {
+        if (authTabSlider) authTabSlider.style.transform = 'translateX(100%)';
+        if (authFormsSlider) authFormsSlider.style.transform = 'translateX(-50%)';
+        if (tabLoginBtn) tabLoginBtn.classList.remove('active');
+        if (tabRegisterBtn) tabRegisterBtn.classList.add('active');
+    }
+
+    // Dynamic height transition (Safe, pre-calculated values to avoid DOM layout offset squishing)
+    const card = document.querySelector('.auth-card');
+    if (card) {
+        if (tab === 'login') {
+            card.style.height = '350px';
+        } else {
+            card.style.height = '500px';
+        }
+    }
+}
+
+if (tabLoginBtn) {
+    tabLoginBtn.addEventListener('click', () => switchToTab('login'));
+}
+if (tabRegisterBtn) {
+    tabRegisterBtn.addEventListener('click', () => switchToTab('register'));
+}
+
+// Toggle between Login and Register Overlays (Slide effect)
+if (linkToRegister) {
+    linkToRegister.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchToTab('register');
+    });
+}
+
+if (linkToLogin) {
+    linkToLogin.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchToTab('login');
+    });
+}
 
 // Função para reduzir o tamanho e comprimir fotos de perfil antes de enviar
 function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
@@ -109,7 +148,7 @@ function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
 // Helper para gerar o HTML do avatar (tanto emoji quanto imagem em base64/URL)
 function getAvatarHtml(avatar, color) {
     if (!avatar) {
-        return `<span style="font-size: 1.4rem; line-height: 1; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1.5px solid ${color || '#00f2ea'};">👤</span>`;
+        return `<span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1.5px solid ${color || '#00f2ea'};"></span>`;
     }
     const isImage = avatar.startsWith('http') || avatar.startsWith('data:image');
     if (isImage) {
@@ -219,9 +258,11 @@ if (savedUser) {
     } catch (err) {
         console.error('Falha ao restaurar sessão de usuário:', err);
         loginOverlay.classList.remove('hidden');
+        switchToTab('login');
     }
 } else {
     loginOverlay.classList.remove('hidden');
+    switchToTab('login');
 }
 
 // Evento de clique no nome do usuário para abrir o menu de opções
@@ -271,11 +312,11 @@ function completeLogin(name, id, avatar, color, bg_color) {
 
     socket.emit('join', myUser);
 
-    loginOverlay.style.opacity = '0';
-    registerOverlay.style.opacity = '0';
+    if (loginOverlay) loginOverlay.style.opacity = '0';
+    if (registerOverlay) registerOverlay.style.opacity = '0';
     setTimeout(() => {
-        loginOverlay.classList.add('hidden');
-        registerOverlay.classList.add('hidden');
+        if (loginOverlay) loginOverlay.classList.add('hidden');
+        if (registerOverlay) registerOverlay.classList.add('hidden');
     }, 300);
 
     updateCurrentUserTag();
@@ -556,11 +597,20 @@ socket.on('syncState', (state) => {
 
         const avatarHtml = getAvatarHtml(msg.avatar, msg.color);
 
+        // Mesma lógica do newMessage: detecta GIF e renderiza como imagem
+        let contentHtml = '';
+        const trimmedText = msg.text.trim();
+        if (trimmedText.startsWith('http') && (trimmedText.includes('giphy.com') || trimmedText.includes('.gif'))) {
+            contentHtml = `<img src="${trimmedText}" alt="GIF" style="max-width: 140px; max-height: 140px; border-radius: 8px; margin-top: 4px; border: 1px solid var(--card-border); box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: block;">`;
+        } else {
+            contentHtml = `<span class="msg-text" style="word-break: break-all; font-size: 0.72rem; line-height: 1.4; color: #e4e4e7;">${msg.text}</span>`;
+        }
+
         div.innerHTML = `
             ${avatarHtml}
             <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;">
                 <span class="msg-user" style="color:${msg.color}; font-weight: 700; font-size: 0.72rem; line-height: 1.1; margin-top: 1px;">${msg.user}</span>
-                <span class="msg-text" style="word-break: break-all; font-size: 0.72rem; line-height: 1.4; color: #e4e4e7;">${msg.text}</span>
+                ${contentHtml}
             </div>
         `;
         chatMessages.appendChild(div);
@@ -724,11 +774,19 @@ socket.on('newMessage', (msg) => {
 
     const avatarHtml = getAvatarHtml(msg.avatar, msg.color);
 
+    let contentHtml = '';
+    const trimmedText = msg.text.trim();
+    if (trimmedText.startsWith('http') && (trimmedText.includes('giphy.com') || trimmedText.includes('.gif'))) {
+        contentHtml = `<img src="${trimmedText}" alt="GIF" style="max-width: 140px; max-height: 140px; border-radius: 8px; margin-top: 4px; border: 1px solid var(--card-border); box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: block;">`;
+    } else {
+        contentHtml = `<span class="msg-text" style="word-break: break-all; font-size: 0.72rem; line-height: 1.4; color: #e4e4e7;">${msg.text}</span>`;
+    }
+
     div.innerHTML = `
         ${avatarHtml}
         <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;">
             <span class="msg-user" style="color:${msg.color}; font-weight: 700; font-size: 0.72rem; line-height: 1.1; margin-top: 1px;">${msg.user}</span>
-            <span class="msg-text" style="word-break: break-all; font-size: 0.72rem; line-height: 1.4; color: #e4e4e7;">${msg.text}</span>
+            ${contentHtml}
         </div>
     `;
 
@@ -973,7 +1031,7 @@ if (openEditBtn) {
             selectedAvatarEmoji = currentAvatar;
         } else {
             editPreviewImg.style.display = 'none';
-            editPreviewPlaceholder.textContent = currentAvatar || '👤';
+            editPreviewPlaceholder.textContent = currentAvatar || '';
             editPreviewPlaceholder.style.display = 'block';
             selectedAvatarEmoji = currentAvatar || null;
         }
@@ -1056,19 +1114,103 @@ if (saveProfileBtn) {
 // Toggle menu de reações e cliques fora dele
 const reactionToggleBtn = document.getElementById('reaction-toggle-btn');
 const reactionMenu = document.getElementById('reaction-menu');
+const gifToggleBtn = document.getElementById('gif-toggle-btn');
+const gifMenu = document.getElementById('gif-menu');
+const gifSearchInput = document.getElementById('gif-search-input');
+const gifResultsGrid = document.getElementById('gif-results-grid');
+const gifHintText = document.getElementById('gif-hint-text');
 
 if (reactionToggleBtn && reactionMenu) {
     reactionToggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         reactionMenu.classList.toggle('hidden');
+        if (gifMenu) gifMenu.classList.add('hidden'); // fecha o outro
     });
+}
 
-    // Fechar menu de reações ao clicar fora
-    document.addEventListener('click', (e) => {
-        if (reactionMenu && !reactionMenu.contains(e.target) && e.target !== reactionToggleBtn) {
-            reactionMenu.classList.add('hidden');
+if (gifToggleBtn && gifMenu) {
+    gifToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        gifMenu.classList.toggle('hidden');
+        if (reactionMenu) reactionMenu.classList.add('hidden'); // fecha o outro
+        
+        // Se abriu o menu e está vazio, carrega os trending/padrão
+        if (!gifMenu.classList.contains('hidden') && gifResultsGrid && gifResultsGrid.children.length === 0) {
+            loadGifs('');
         }
     });
+}
+
+// Fechar menus de popover ao clicar fora
+document.addEventListener('click', (e) => {
+    if (reactionMenu && !reactionMenu.contains(e.target) && e.target !== reactionToggleBtn) {
+        reactionMenu.classList.add('hidden');
+    }
+    if (gifMenu && !gifMenu.contains(e.target) && e.target !== gifToggleBtn) {
+        gifMenu.classList.add('hidden');
+    }
+});
+
+// Função para buscar e renderizar os GIFs da nossa API com debounce
+let gifDebounceTimeout;
+if (gifSearchInput) {
+    gifSearchInput.addEventListener('input', (e) => {
+        clearTimeout(gifDebounceTimeout);
+        gifDebounceTimeout = setTimeout(() => {
+            loadGifs(e.target.value.trim());
+        }, 300);
+    });
+}
+
+async function loadGifs(searchTerm) {
+    if (!gifResultsGrid) return;
+    
+    gifResultsGrid.innerHTML = '<div style="grid-column: span 2; text-align: center; font-size: 0.65rem; color: #a1a1aa; padding: 10px;">Carregando...</div>';
+    
+    try {
+        const res = await fetch(`/api/gifs?q=${encodeURIComponent(searchTerm)}`);
+        const data = await res.json();
+        
+        if (data.success && data.gifs && data.gifs.length > 0) {
+            gifResultsGrid.innerHTML = '';
+            data.gifs.forEach(gif => {
+                const img = document.createElement('img');
+                img.src = gif.url;
+                img.alt = gif.title;
+                img.style.width = '100%';
+                img.style.height = '60px';
+                img.style.objectFit = 'cover';
+                img.style.borderRadius = '6px';
+                img.style.cursor = 'pointer';
+                img.style.transition = 'transform 0.15s ease';
+                
+                img.addEventListener('mouseenter', () => img.style.transform = 'scale(1.05)');
+                img.addEventListener('mouseleave', () => img.style.transform = 'scale(1)');
+                
+                img.addEventListener('click', () => {
+                    // Envia o link do GIF diretamente no chat
+                    socket.emit('sendMessage', gif.url);
+                    if (gifMenu) gifMenu.classList.add('hidden');
+                });
+                
+                gifResultsGrid.appendChild(img);
+            });
+            
+            // Exibir a dica amigável caso esteja usando os fallbacks
+            if (gifHintText) {
+                if (data.isFallback) {
+                    gifHintText.innerHTML = 'Dica: Adicione <strong style="color: #6366f1;">GIPHY_API_KEY</strong> no seu arquivo .env para pesquisar milhões de GIFs reais!';
+                } else {
+                    gifHintText.innerText = 'Via Giphy API';
+                }
+            }
+        } else {
+            gifResultsGrid.innerHTML = '<div style="grid-column: span 2; text-align: center; font-size: 0.65rem; color: #a1a1aa; padding: 10px;">Nenhum GIF encontrado.</div>';
+        }
+    } catch (err) {
+        console.error('Erro ao buscar GIFs:', err);
+        gifResultsGrid.innerHTML = '<div style="grid-column: span 2; text-align: center; font-size: 0.65rem; color: #ef4444; padding: 10px;">Erro ao carregar GIFs.</div>';
+    }
 }
 
 // Ativar as Reações Flutuantes no Clique

@@ -11,47 +11,52 @@
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-    <!-- Login Overlay -->
-    <div id="login-overlay" class="overlay">
-        <div class="glass-card login-card">
-            <h1 class="brand-title">Cinema das Guria 🎬</h1>
-            <p class="brand-subtitle">Faça login para assistir e palpitar</p>
-            <input type="email" id="login-email" placeholder="E-mail..." required>
-            <input type="password" id="login-password" placeholder="Senha..." required>
-            <button id="btn-submit-login">Entrar</button>
-            <p class="auth-toggle">Não tem conta? <a href="#" id="link-to-register">Cadastre-se</a></p>
-        </div>
-    </div>
-
-    <!-- Register Overlay (Oculto por padrão) -->
-    <div id="register-overlay" class="overlay hidden">
-        <div class="glass-card login-card" style="max-width: 380px;">
-            <h1 class="brand-title">Cinema das Guria 🎬</h1>
-            <p class="brand-subtitle">Crie sua conta para participar</p>
+    <!-- Beautiful sliding Auth Overlay -->
+    <div id="login-overlay" class="auth-overlay">
+        <div class="auth-card glass-card">
+            <!-- App Branding -->
+            <h1 class="auth-title">Cinema das Guria 🎬</h1>
             
-            <!-- Foto de Perfil (Avatar Selection na criação) -->
-            <div style="display: flex; flex-direction: column; gap: 4px; text-align: left; margin: 10px 0; width: 100%;">
-                <label style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; margin-left: 2px;">Foto de Perfil</label>
-                
-                <div style="display: flex; gap: 12px; align-items: center;">
-                    <!-- Circular Preview for Device Upload -->
-                    <div id="register-avatar-preview" style="width: 52px; height: 52px; border-radius: 50%; border: 2px dashed var(--card-border); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.02); flex-shrink: 0;" title="Escolher foto do dispositivo">
-                        <span id="register-preview-placeholder" style="font-size: 1.3rem;">👤</span>
-                        <img id="register-preview-img" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+            <!-- Sliding Pill Tabs Selector -->
+            <div class="auth-tabs">
+                <div class="auth-tab-slider" id="auth-tab-slider"></div>
+                <button type="button" class="auth-tab-btn active" id="tab-login-btn">Entrar</button>
+                <button type="button" class="auth-tab-btn" id="tab-register-btn">Criar Conta</button>
+            </div>
+            
+            <!-- Side-by-side forms wrapper -->
+            <div class="auth-forms-slider-container">
+                <div class="auth-forms-slider" id="auth-forms-slider">
+                    <!-- Login Pane -->
+                    <div class="auth-form-pane">
+                        <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                            <input type="email" id="login-email" placeholder="E-mail..." required>
+                            <input type="password" id="login-password" placeholder="Senha..." required>
+                            <button id="btn-submit-login" class="auth-submit-btn">Entrar</button>
+                        </div>
                     </div>
-                    <input type="file" id="register-avatar-file" accept="image/*" style="display: none;">
                     
-                    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
-                        <button type="button" id="btn-trigger-register-file" class="acervo-control-btn" style="padding: 5px 10px; font-size: 0.65rem; width: fit-content; background: rgba(255,255,255,0.05);">Upload do Dispositivo</button>
+                    <!-- Register Pane -->
+                    <div class="auth-form-pane">
+                        <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                            <!-- Foto de Perfil Upload -->
+                            <div style="display: flex; gap: 14px; align-items: center; justify-content: center; margin: 4px 0 8px 0;">
+                                <div id="register-avatar-preview" style="width: 52px; height: 52px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.02); flex-shrink: 0;" title="Escolher foto do dispositivo">
+                                    <span id="register-preview-placeholder"></span>
+                                    <img id="register-preview-img" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                                </div>
+                                <input type="file" id="register-avatar-file" accept="image/*" style="display: none;">
+                                <button type="button" id="btn-trigger-register-file" class="acervo-control-btn" style="padding: 6px 12px; font-size: 0.7rem; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); font-weight: 600;">Upload Foto</button>
+                            </div>
+
+                            <input type="text" id="register-name" placeholder="Seu nome..." maxlength="15" required>
+                            <input type="email" id="register-email" placeholder="E-mail..." required>
+                            <input type="password" id="register-password" placeholder="Senha..." required>
+                            <button id="btn-submit-register" class="auth-submit-btn">Criar Conta</button>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <input type="text" id="register-name" placeholder="Seu nome..." maxlength="15" required>
-            <input type="email" id="register-email" placeholder="E-mail..." required>
-            <input type="password" id="register-password" placeholder="Senha..." required>
-            <button id="btn-submit-register">Criar Conta</button>
-            <p class="auth-toggle">Já tem conta? <a href="#" id="link-to-login">Fazer Login</a></p>
         </div>
     </div>
 
@@ -65,7 +70,7 @@
                     <button id="add-video-btn">＋</button>
                 </div>
                 <!-- Host Start button inside the header -->
-                <button id="start-game-btn" class="header-start-btn" style="display: none;">Iniciar ➔</button>
+                <button id="start-game-btn" class="header-start-btn" style="display: none;">Iniciar</button>
             </div>
             <div class="header-right">
                 <div id="current-user-tag" class="user-tag" title="Clique para sair"></div>
@@ -99,9 +104,10 @@
                     <input type="text" id="chat-input" placeholder="Comente aqui..." maxlength="200">
                     <div style="position: relative; display: flex; gap: 6px;">
                         <button id="reaction-toggle-btn" style="width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; transition: all 0.15s ease;">😊</button>
+                        <button id="gif-toggle-btn" style="width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; transition: all 0.15s ease;">GIF</button>
                         
                         <!-- Popover Menu com a grade rica de Emojis (Grid 5x5 Centralizado) -->
-                        <div id="reaction-menu" class="hidden" style="position: absolute; bottom: 38px; right: 0; background: rgba(15, 15, 20, 0.95); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; width: 210px; box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index: 1000; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; justify-items: center; align-items: center;">
+                        <div id="reaction-menu" class="hidden" style="position: absolute; bottom: 38px; right: 36px; background: rgba(15, 15, 20, 0.95); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; width: 210px; box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index: 1000; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; justify-items: center; align-items: center;">
                             <button class="reaction-btn" data-emoji="❤️" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">❤️</button>
                             <button class="reaction-btn" data-emoji="😂" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😂</button>
                             <button class="reaction-btn" data-emoji="😮" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">😮</button>
@@ -127,6 +133,17 @@
                             <button class="reaction-btn" data-emoji="🍕" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🍕</button>
                             <button class="reaction-btn" data-emoji="🍷" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🍷</button>
                             <button class="reaction-btn" data-emoji="🌟" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box;">🌟</button>
+                        </div>
+
+                        <!-- Popover Menu com busca de GIFs -->
+                        <div id="gif-menu" class="hidden" style="position: absolute; bottom: 38px; right: 0; background: rgba(15, 15, 20, 0.95); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; width: 220px; box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index: 1000; display: flex; flex-direction: column; gap: 8px;">
+                            <input type="text" id="gif-search-input" placeholder="Pesquisar GIFs..." style="background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 8px; padding: 6px 10px; color: white; font-size: 0.75rem; width: 100%; box-sizing: border-box; outline: none;">
+                            
+                            <!-- Grade com os resultados dos GIFs -->
+                            <div id="gif-results-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 2px;">
+                                <!-- Carregados dinamicamente via JS -->
+                            </div>
+                            <small id="gif-hint-text" style="font-size: 0.6rem; color: var(--text-dim); line-height: 1.2; text-align: center; display: block; margin-top: 2px;"></small>
                         </div>
                         
                         <button id="send-chat-btn">➔</button>
@@ -209,7 +226,7 @@
                     <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 4px;">
                         <!-- Circular Preview for Device Upload -->
                         <div id="edit-avatar-preview" style="width: 48px; height: 48px; border-radius: 50%; border: 2px dashed var(--card-border); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.02); flex-shrink: 0;" title="Escolher foto do dispositivo">
-                            <span id="edit-preview-placeholder" style="font-size: 1.2rem;">👤</span>
+                            <span id="edit-preview-placeholder"></span>
                             <img id="edit-preview-img" style="width: 100%; height: 100%; object-fit: cover; display: none;">
                         </div>
                         <input type="file" id="edit-avatar-file" accept="image/*" style="display: none;">

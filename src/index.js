@@ -162,8 +162,8 @@ function saveRankingToDb(sortedRank) {
   }
 }
 
-// API de Registro de Usuários no Banco de Dados SQLite (ou Supabase no futuro)
-app.post('/api/register', (req, res) => {
+// API de Registro de Usuários
+app.post('/api/register', async (req, res) => {
   const { name, email, password, avatar } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Preencha todos os campos obrigatórios!' });
@@ -173,17 +173,49 @@ app.post('/api/register', (req, res) => {
   const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
   const createdAt = new Date().toISOString();
 
-  if (!offlineDb) {
-    return res.status(500).json({ error: 'Banco de dados não configurado!' });
+  // Modo Online: Supabase
+  if (supabaseEnabled && supabase) {
+    try {
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .single();
+
+      if (existing) {
+        return res.status(400).json({ error: 'Este e-mail já está em uso!' });
+      }
+
+      const { error } = await supabase.from('users').insert({
+        id: userId,
+        name,
+        email: email.toLowerCase(),
+        password_hash: passwordHash,
+        avatar: avatar || null,
+        bg_color: '#0a0a0c',
+        created_at: createdAt
+      });
+
+      if (error) throw error;
+
+      return res.status(201).json({
+        success: true,
+        user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
+      });
+    } catch (err) {
+      console.error('Erro no registro Supabase:', err.message);
+      return res.status(500).json({ error: 'Falha ao registrar usuário.' });
+    }
   }
 
+  // Modo Offline: SQLite
+  if (!offlineDb) return res.status(500).json({ error: 'Banco de dados não configurado!' });
   try {
     const insert = offlineDb.prepare(`
       INSERT INTO users (id, name, email, password_hash, avatar, bg_color, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     insert.run(userId, name, email.toLowerCase(), passwordHash, avatar || null, '#0a0a0c', createdAt);
-    
     return res.status(201).json({
       success: true,
       user: { id: userId, name, email: email.toLowerCase(), avatar: avatar || null, bg_color: '#0a0a0c' }
@@ -197,41 +229,104 @@ app.post('/api/register', (req, res) => {
   }
 });
 
-// API de Login de Usuários no Banco de Dados
-app.post('/api/login', (req, res) => {
+// API de Login de Usuários
+app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Preencha e-mail e senha!' });
   }
 
-  if (!offlineDb) {
-    return res.status(500).json({ error: 'Banco de dados não configurado!' });
+  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+
+  // Modo Online: Supabase
+  if (supabaseEnabled && supabase) {
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .single();
+
+      if (error || !user) {
+        return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
+      }
+
+      if (user.password_hash !== passwordHash) {
+        return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
+      }
+
+      return res.json({
+        success: true,
+        user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c' }
+      });
+    } catch (err) {
+      console.error('Erro no login Supabase:', err.message);
+      return res.status(500).json({ error: 'Falha interna ao realizar login.' });
+    }
   }
 
+  // Modo Offline: SQLite
+  if (!offlineDb) return res.status(500).json({ error: 'Banco de dados não configurado!' });
   try {
     const user = offlineDb.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
-    if (!user) {
+    if (!user || user.password_hash !== passwordHash) {
       return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
     }
-
-    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-    if (user.password_hash !== passwordHash) {
-      return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
-    }
-
     return res.json({
       success: true,
-      user: { 
-        id: user.id, 
-        name: user.name, 
-        email: user.email, 
-        avatar: user.avatar || null, 
-        bg_color: user.bg_color || '#0a0a0c' 
-      }
+      user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c' }
     });
   } catch (err) {
     console.error('Erro no login SQLite:', err);
     return res.status(500).json({ error: 'Falha interna ao realizar login.' });
+  }
+});
+
+// Lista de GIFs padrão/fallback (utilizada quando não há GIPHY_API_KEY no .env)
+const FALLBACK_GIFS = [
+  { id: '1', title: 'Pipoca Popcorn', url: 'https://media.giphy.com/media/l0HlPystfePnAI3G8/giphy.gif' },
+  { id: '2', title: 'Cinema Minions', url: 'https://media.giphy.com/media/143v0Z4767T15e/giphy.gif' },
+  { id: '3', title: 'Chocado Shocked', url: 'https://media.giphy.com/media/3o7527pa7qs9kCG78A/giphy.gif' },
+  { id: '4', title: 'Festa Celebrate', url: 'https://media.giphy.com/media/l1J9yTfqwY7WI2fcQ/giphy.gif' },
+  { id: '5', title: 'Palmas Applause', url: 'https://media.giphy.com/media/26u4cxtv7vPq52Pfi/giphy.gif' },
+  { id: '6', title: 'Rindo Laughing', url: 'https://media.giphy.com/media/3o7TKSjRrfIPjei1fG/giphy.gif' },
+  { id: '7', title: 'Gato Cat', url: 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif' },
+  { id: '8', title: 'Tédio Bored', url: 'https://media.giphy.com/media/tHvx53QkPMXh6/giphy.gif' }
+];
+
+// API de Busca e Trending de GIFs do Giphy
+app.get('/api/gifs', async (req, res) => {
+  const query = req.query.q || '';
+  const apiKey = process.env.GIPHY_API_KEY;
+
+  if (!apiKey) {
+    if (query) {
+      const filtered = FALLBACK_GIFS.filter(gif => 
+        gif.title.toLowerCase().includes(query.toLowerCase())
+      );
+      return res.json({ success: true, gifs: filtered, isFallback: true });
+    }
+    return res.json({ success: true, gifs: FALLBACK_GIFS, isFallback: true });
+  }
+
+  try {
+    const url = query 
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(query)}&limit=15`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${apiKey}&limit=15`;
+
+    const response = await axios.get(url);
+    if (response.data && response.data.data) {
+      const gifs = response.data.data.map(item => ({
+        id: item.id,
+        title: item.title,
+        url: item.images.fixed_height.url
+      }));
+      return res.json({ success: true, gifs, isFallback: false });
+    }
+    return res.json({ success: true, gifs: FALLBACK_GIFS, isFallback: true });
+  } catch (error) {
+    console.error('Erro ao buscar GIFs no Giphy:', error.message);
+    return res.json({ success: true, gifs: FALLBACK_GIFS, isFallback: true });
   }
 });
 
@@ -487,9 +582,10 @@ io.on('connection', (socket) => {
     if (!user) return;
 
     const trimmedText = text.trim();
-    if (!trimmedText || trimmedText.length > 200) return;
+    if (!trimmedText || trimmedText.length > 350) return;
 
     const message = {
+      userId: user.id,
       user: user.name,
       color: user.color || '#ff0050',
       avatar: user.avatar || null,
@@ -511,18 +607,26 @@ io.on('connection', (socket) => {
   });
 
   // Módulo de Atualização de Perfil (Nome, Avatar e Cor de Fundo)
-  socket.on('updateProfile', (data) => {
+  socket.on('updateProfile', async (data) => {
     const user = Object.values(cinemaState.users).find(u => u.socketId === socket.id);
     if (!user) return;
 
     if (data.name && data.name.trim()) {
       user.name = data.name.trim();
     }
-
     user.avatar = data.avatar || null;
 
-    // Persistir no banco de dados SQLite do usuário
-    if (offlineDb) {
+    // Persistir: Supabase (online) ou SQLite (offline)
+    if (supabaseEnabled && supabase) {
+      try {
+        await supabase
+          .from('users')
+          .update({ name: user.name, avatar: user.avatar, bg_color: data.bg_color || '#0a0a0c' })
+          .eq('id', user.id);
+      } catch (err) {
+        console.error('Erro ao atualizar perfil no Supabase:', err.message);
+      }
+    } else if (offlineDb) {
       try {
         const update = offlineDb.prepare('UPDATE users SET name = ?, avatar = ?, bg_color = ? WHERE id = ?');
         update.run(user.name, user.avatar, data.bg_color || '#0a0a0c', user.id);
@@ -531,10 +635,11 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Atualizar avatares do chat histórico
+    // Atualizar avatares do chat histórico pelo ID do usuário
     cinemaState.chatHistory.forEach(msg => {
-      if (msg.user === user.name) {
+      if (msg.userId === user.id) {
         msg.avatar = user.avatar;
+        msg.user = user.name;
       }
     });
 
