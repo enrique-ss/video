@@ -1024,9 +1024,14 @@ async function renderAcervo() {
         const div = document.createElement('div');
         div.style.width = '100%';
         
+        const displayTitle = item.title && item.title.trim() ? item.title : item.url;
+        
         div.innerHTML = `
             <div class="acervo-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.015); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; width: 100%; box-sizing: border-box; margin-bottom: 4px; gap: 8px; transition: background 0.2s ease;">
-                <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; flex-grow: 1; text-align: left;" title="${item.title}">${item.title}</span>
+                <div style="display: flex; align-items: center; gap: 8px; flex-grow: 1; min-width: 0;">
+                    ${item.thumbnail ? `<img src="${item.thumbnail}" alt="thumb" style="width: 36px; height: 24px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">` : ''}
+                    <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; text-align: left; flex-grow: 1;" title="${displayTitle}">${displayTitle}</span>
+                </div>
                 <div style="display: flex; gap: 4px; flex-shrink: 0;">
                     <button class="use-acervo-btn" data-url="${item.url}" style="background: var(--accent-cyan); color: #000; border: none; padding: 2px 6px; border-radius: 4px; font-size: 0.62rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease;">Fila</button>
                     <button class="delete-acervo-btn" data-url="${item.url}" style="background: rgba(255,0,0,0.1); color: var(--accent-pink); border: 1px solid rgba(255,0,0,0.1); padding: 2px 4px; border-radius: 4px; font-size: 0.62rem; cursor: pointer; transition: transform 0.1s ease;">🗑️</button>
