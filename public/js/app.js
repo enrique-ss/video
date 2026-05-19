@@ -78,9 +78,9 @@ function switchToTab(tab) {
     const card = document.querySelector('.auth-card');
     if (card) {
         if (tab === 'login') {
-            card.style.height = '390px'; // Aumentado para caber o footer
+            card.style.height = '430px'; // Aumentado para caber o novo título e footer
         } else {
-            card.style.height = '540px'; // Aumentado para caber o footer
+            card.style.height = '595px'; // Aumentado para caber o novo título e footer
         }
     }
 }
