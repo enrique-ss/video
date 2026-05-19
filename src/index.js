@@ -52,8 +52,9 @@ try {
 }
 
 // Supabase Client
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase = supabaseEnabled 
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
+  ? createClient(process.env.SUPABASE_URL, supabaseKey)
   : null;
 
 // 15 Cores exclusivas e vibrantes para os usuários (garante alta visibilidade em ambos os temas)
@@ -219,7 +220,9 @@ app.post('/api/register', async (req, res) => {
   }
 
   // Modo Offline: SQLite
-  if (!offlineDb) return res.status(500).json({ error: 'Banco de dados não configurado!' });
+  if (!offlineDb) {
+    return res.status(500).json({ error: `Banco não configurado. Supabase ativo: ${supabaseEnabled}. Verifique se você fez o Deploy Manual no Render após salvar as variáveis.` });
+  }
   try {
     const insert = offlineDb.prepare(`
       INSERT INTO users (id, name, email, password_hash, avatar, bg_color, created_at)
