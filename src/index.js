@@ -151,12 +151,12 @@ function saveRankingToDb(sortedRank) {
     `);
 
     const insertUser = offlineDb.prepare(`
-      INSERT OR REPLACE INTO users (id, email, password_hash, created_at)
-      VALUES (?, ?, ?, ?)
+      INSERT OR IGNORE INTO users (id, name, email, password_hash, created_at)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
     sortedRank.forEach((player) => {
-      insertUser.run(player.id, null, `points:${player.points}`, createdAt);
+      insertUser.run(player.id, player.name, null, `points:${player.points}`, createdAt);
     });
 
     console.log('Pontuações da rodada salvas no banco de dados SQLite.');
@@ -548,16 +548,40 @@ io.on('connection', (socket) => {
   console.log('User conectado no socket:', socket.id);
 
   // Registro/Join do Usuário
-  socket.on('join', (userData) => {
-    let user = Object.values(cinemaState.users).find(u => u.id === userData.id);
+  socket.on('join', async (userData) => {
+    if (!userData || !userData.id) {
+      socket.emit('forceLogout', 'Acesso negado. Por favor, faça login ou crie uma conta.');
+      return;
+    }
+
+    let dbUser = null;
+    if (supabaseEnabled && supabase) {
+      try {
+        const { data } = await supabase.from('users').select('*').eq('id', userData.id).single();
+        dbUser = data;
+      } catch (err) {}
+    } else if (offlineDb) {
+      try {
+        dbUser = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userData.id);
+      } catch (err) {}
+    }
+
+    if (!dbUser) {
+      socket.emit('forceLogout', 'Usuário não cadastrado. Por favor, crie uma conta.');
+      return;
+    }
+
+    let user = Object.values(cinemaState.users).find(u => u.id === dbUser.id);
 
     if (user) {
       // Reconexão de usuário existente
       user.socketId = socket.id;
+      user.name = dbUser.name;
       if (userData.avatar) user.avatar = userData.avatar;
+      if (userData.bg_color) user.bg_color = userData.bg_color;
       console.log(`Usuário ${user.name} reconectou sob socket ${socket.id}`);
     } else {
-      // Criação de novo usuário
+      // Criação de novo usuário ativo
       const isFirst = Object.keys(cinemaState.users).length === 0;
 
       // Distribuição de cores exclusivas sem repetição (máximo de 15 usuários)
@@ -568,19 +592,20 @@ io.on('connection', (socket) => {
         : `#${Math.floor(Math.random()*16777215).toString(16)}`;
 
       user = {
-        id: userData.id || crypto.randomUUID(),
-        name: userData.name || 'Convidado ' + Math.floor(Math.random() * 900 + 100),
+        id: dbUser.id,
+        name: dbUser.name,
         socketId: socket.id,
         isHost: isFirst,
-        authMethod: userData.authMethod || 'guest',
+        authMethod: 'email',
         color: assignedColor,
-        avatar: userData.avatar || null
+        avatar: dbUser.avatar || null,
+        bg_color: dbUser.bg_color || '#0a0a0c'
       };
 
       cinemaState.users[user.id] = user;
       cinemaState.scores[user.id] = cinemaState.scores[user.id] || 0;
       
-      console.log(`Novo usuário registrado com cor única ${assignedColor}: ${user.name} (${user.id})`);
+      console.log(`Usuário cadastrado conectado com cor única ${assignedColor}: ${user.name} (${user.id})`);
     }
 
     // Emitir atualizações
@@ -760,6 +785,7 @@ io.on('connection', (socket) => {
       user.name = data.name.trim();
     }
     user.avatar = data.avatar || null;
+    user.bg_color = data.bg_color || '#0a0a0c';
 
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {

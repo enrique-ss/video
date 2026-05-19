@@ -257,6 +257,26 @@ socket.on('connect', () => {
     }
 });
 
+socket.on('forceLogout', (msg) => {
+    localStorage.removeItem('cinema_das_guria_user');
+    myUser = {
+        id: '',
+        name: '',
+        socketId: '',
+        isHost: false,
+        authMethod: 'email',
+        tiktokHandle: '',
+        color: '',
+        avatar: null
+    };
+    if (loginOverlay) {
+        loginOverlay.classList.remove('hidden');
+        loginOverlay.style.opacity = '1';
+    }
+    switchToTab('login');
+    if (msg) alert(msg);
+});
+
 // --- SESSION CONTROL (TK-06 & TK-07) ---
 const savedUser = localStorage.getItem('cinema_das_guria_user');
 if (savedUser) {
@@ -295,8 +315,6 @@ function completeLogin(name, id, avatar, color, bg_color) {
     myUser.name = name;
     if (id) {
         myUser.id = id;
-    } else if (!myUser.id) {
-        myUser.id = 'usr_' + Math.random().toString(36).substr(2, 9);
     }
     if (avatar) {
         myUser.avatar = avatar;
@@ -1098,7 +1116,6 @@ if (acervoInput) {
 const openEditBtn = document.getElementById('open-edit-btn');
 const optionsEditPanel = document.getElementById('options-edit-panel');
 const editBackToMenuBtn = document.getElementById('edit-back-to-menu-btn');
-const editNameInput = document.getElementById('edit-name-input');
 const editAvatarPreview = document.getElementById('edit-avatar-preview');
 const editAvatarFile = document.getElementById('edit-avatar-file');
 const btnTriggerEditFile = document.getElementById('btn-trigger-edit-file');
@@ -1117,7 +1134,6 @@ if (openEditBtn) {
         if (optionsModalCard) optionsModalCard.style.width = '300px';
 
         // Carregar valores atuais
-        editNameInput.value = myUser.name || '';
         
         const currentAvatar = myUser.avatar || '';
         if (currentAvatar.startsWith('data:image') || currentAvatar.startsWith('http')) {
@@ -1174,16 +1190,9 @@ if (editAvatarFile) {
 // Salvar as Alterações de Perfil
 if (saveProfileBtn) {
     saveProfileBtn.addEventListener('click', () => {
-        const newName = editNameInput.value.trim();
-        if (!newName) {
-            alert('Por favor, insira um nome de usuário válido!');
-            return;
-        }
-
         let newAvatar = selectedAvatarEmoji || null;
 
         // Salvar nas configurações locais do usuário
-        myUser.name = newName;
         myUser.avatar = newAvatar;
         const newBg = editBgColor.value;
         myUser.bg_color = newBg;
@@ -1195,7 +1204,7 @@ if (saveProfileBtn) {
 
         // Notificar servidor via Websocket
         socket.emit('updateProfile', {
-            name: newName,
+            name: myUser.name,
             avatar: newAvatar,
             bg_color: newBg
         });
