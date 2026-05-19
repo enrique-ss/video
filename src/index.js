@@ -419,8 +419,7 @@ app.get('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const client = getSupabaseClient(req);
-      const { data: list, error } = await client
+      const { data: list, error } = await supabase
         .from('acervo')
         .select('*')
         .eq('user_id', user_id)
@@ -463,8 +462,7 @@ app.post('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const client = getSupabaseClient(req);
-      const { error } = await client
+      const { error } = await supabase
         .from('acervo')
         .insert({
           user_id,
@@ -516,8 +514,7 @@ app.delete('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const client = getSupabaseClient(req);
-      const { error } = await client
+      const { error } = await supabase
         .from('acervo')
         .delete()
         .eq('user_id', user_id)
@@ -917,8 +914,7 @@ io.on('connection', (socket) => {
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {
       try {
-        const client = getSupabaseSocketClient(user.token);
-        const { error } = await client
+        const { error } = await supabase
           .from('users')
           .upsert({ 
             id: user.id, 

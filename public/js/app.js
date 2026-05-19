@@ -968,13 +968,19 @@ async function getAcervo() {
         if (!res.ok) {
             const errData = await res.json();
             console.error('Erro de API ao buscar acervo:', errData.error);
-            return [];
+            return myUser.acervo || [];
         }
         const data = await res.json();
-        return data.list || [];
+        const list = data.list || [];
+        
+        // Mantém o acervo fisicamente vinculado e gravado diretamente no objeto do usuário!
+        myUser.acervo = list;
+        localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+        
+        return list;
     } catch(err) {
         console.error('Erro ao buscar acervo:', err);
-        return [];
+        return myUser.acervo || [];
     }
 }
 
