@@ -1040,13 +1040,24 @@ io.on('connection', (socket) => {
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {
       try {
-        const { error } = await supabase
+        let client = supabase;
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY && user.token) {
+          client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: {
+              headers: {
+                Authorization: `Bearer ${user.token}`
+              }
+            }
+          });
+        }
+        
+        const { error } = await client
           .from('users')
           .upsert({ 
             id: user.id, 
             name: user.name, 
             avatar: user.avatar, 
-            bg_color: data.bg_color || '#0a0a0c',
+            bg_color: user.bg_color,
             created_at: new Date().toISOString()
           });
         
