@@ -548,84 +548,15 @@ io.on('connection', (socket) => {
   console.log('User conectado no socket:', socket.id);
 
   // Registro/Join do Usuário
-  socket.on('join', async (userData) => {
-    const logPath = path.resolve(__dirname, '..', 'socket_join_log.txt');
-    let logMsg = `--- JOIN REQUEST AT ${new Date().toISOString()} ---\n`;
-    logMsg += `userData: ${JSON.stringify(userData)}\n`;
-    logMsg += `supabaseEnabled: ${supabaseEnabled}, supabase exists: ${!!supabase}\n`;
+  socket.on('join', (userData) => {
+    if (!userData || !userData.id) return;
 
-    if (!userData || !userData.id) {
-      logMsg += `Rejected: userData or id is missing\n`;
-      fs.writeFileSync(logPath, logMsg);
-      socket.emit('forceLogout', 'Acesso negado. Por favor, faça login ou crie uma conta.');
-      return;
-    }
-
-    let dbUser = null;
-    if (supabaseEnabled && supabase) {
-      try {
-        const { data, error } = await supabase.from('users').select('*').eq('id', userData.id).single();
-        if (error) {
-          logMsg += `Supabase query error: ${JSON.stringify(error)}\n`;
-        } else {
-          logMsg += `Supabase user found: ${JSON.stringify(data)}\n`;
-        }
-        dbUser = data;
-      } catch (err) {
-        logMsg += `Supabase query exception: ${err.message}\n`;
-      }
-
-      if (!dbUser) {
-        logMsg += `Rejected: user not found in Supabase\n`;
-        fs.writeFileSync(logPath, logMsg);
-        socket.emit('forceLogout', 'Usuário não cadastrado. Por favor, crie uma conta.');
-        return;
-      }
-    } else {
-      // Modo offline (local testing): Se o usuário não existir no SQLite local, 
-      // nós o registramos automaticamente para evitar forceLogout durante os testes de desenvolvimento!
-      if (offlineDb) {
-        try {
-          dbUser = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userData.id);
-          if (!dbUser) {
-            console.log('Offline: User not in SQLite. Auto-registering...');
-            const insert = offlineDb.prepare(`
-              INSERT OR IGNORE INTO users (id, name, email, password_hash, avatar, bg_color, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `);
-            insert.run(
-              userData.id, 
-              userData.name || 'Jogador Local', 
-              null, 
-              'offline-session', 
-              userData.avatar || null, 
-              userData.bg_color || '#0a0a0c', 
-              new Date().toISOString()
-            );
-            dbUser = {
-              id: userData.id,
-              name: userData.name || 'Jogador Local',
-              avatar: userData.avatar || null,
-              bg_color: userData.bg_color || '#0a0a0c'
-            };
-          } else {
-            console.log('Offline: User found in SQLite:', dbUser);
-          }
-        } catch (err) {
-          console.error('SQLite query error during join:', err);
-          dbUser = userData;
-        }
-      } else {
-        dbUser = userData;
-      }
-    }
-
-    let user = Object.values(cinemaState.users).find(u => u.id === dbUser.id);
+    let user = Object.values(cinemaState.users).find(u => u.id === userData.id);
 
     if (user) {
       // Reconexão de usuário existente
       user.socketId = socket.id;
-      user.name = dbUser.name;
+      user.name = userData.name || user.name;
       if (userData.avatar) user.avatar = userData.avatar;
       if (userData.bg_color) user.bg_color = userData.bg_color;
       console.log(`Usuário ${user.name} reconectou sob socket ${socket.id}`);
@@ -641,25 +572,23 @@ io.on('connection', (socket) => {
         : `#${Math.floor(Math.random()*16777215).toString(16)}`;
 
       user = {
-        id: dbUser.id,
-        name: dbUser.name,
+        id: userData.id,
+        name: userData.name || 'Convidado ' + Math.floor(Math.random() * 900 + 100),
         socketId: socket.id,
         isHost: isFirst,
-        authMethod: 'email',
+        authMethod: userData.authMethod || 'email',
         color: assignedColor,
-        avatar: dbUser.avatar || null,
-        bg_color: dbUser.bg_color || '#0a0a0c'
+        avatar: userData.avatar || null,
+        bg_color: userData.bg_color || '#0a0a0c'
       };
 
       cinemaState.users[user.id] = user;
       cinemaState.scores[user.id] = cinemaState.scores[user.id] || 0;
       
-      console.log(`Usuário cadastrado conectado com cor única ${assignedColor}: ${user.name} (${user.id})`);
+      console.log(`Usuário conectado com cor única ${assignedColor}: ${user.name} (${user.id})`);
     }
 
     // Emitir atualizações
-    logMsg += `Success: User joined successfully!\n`;
-    fs.writeFileSync(logPath, logMsg);
     io.emit('updateUsers', Object.values(cinemaState.users));
     socket.emit('syncState', getClientState());
   });

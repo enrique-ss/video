@@ -350,13 +350,8 @@ function completeLogin(name, id, avatar, color, bg_color) {
 
 function updateCurrentUserTag() {
     if (currentUserTag) {
-        const isImage = myUser.avatar && (myUser.avatar.startsWith('http') || myUser.avatar.startsWith('data:image'));
-        const avatarHtml = myUser.avatar 
-            ? (isImage 
-                ? '' // Fotos do dispositivo/link não aparecem no cabeçalho
-                : `<span style="font-size: 0.75rem; margin-right: 4px;">${myUser.avatar}</span>`) 
-            : '';
-        currentUserTag.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 4px;">${avatarHtml}<span>${myUser.name}</span></div>`;
+        const avatarHtml = getAvatarHtml(myUser.avatar, myUser.color);
+        currentUserTag.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 6px;">${avatarHtml}<span>${myUser.name}</span></div>`;
     }
 }
 
@@ -555,6 +550,12 @@ socket.on('syncState', (state) => {
         myUser.color = serverMe.color;
         myUser.name = serverMe.name;
         myUser.avatar = serverMe.avatar || null;
+        if (serverMe.bg_color) {
+            myUser.bg_color = serverMe.bg_color;
+            document.documentElement.style.setProperty('--bg-dark', myUser.bg_color);
+            localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
+            localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+        }
         updateCurrentUserTag();
     }
 
