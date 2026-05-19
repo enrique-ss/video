@@ -549,7 +549,14 @@ io.on('connection', (socket) => {
 
   // Registro/Join do Usuário
   socket.on('join', async (userData) => {
+    const logPath = path.resolve(__dirname, '..', 'socket_join_log.txt');
+    let logMsg = `--- JOIN REQUEST AT ${new Date().toISOString()} ---\n`;
+    logMsg += `userData: ${JSON.stringify(userData)}\n`;
+    logMsg += `supabaseEnabled: ${supabaseEnabled}, supabase exists: ${!!supabase}\n`;
+
     if (!userData || !userData.id) {
+      logMsg += `Rejected: userData or id is missing\n`;
+      fs.writeFileSync(logPath, logMsg);
       socket.emit('forceLogout', 'Acesso negado. Por favor, faça login ou crie uma conta.');
       return;
     }
@@ -557,11 +564,20 @@ io.on('connection', (socket) => {
     let dbUser = null;
     if (supabaseEnabled && supabase) {
       try {
-        const { data } = await supabase.from('users').select('*').eq('id', userData.id).single();
+        const { data, error } = await supabase.from('users').select('*').eq('id', userData.id).single();
+        if (error) {
+          logMsg += `Supabase query error: ${JSON.stringify(error)}\n`;
+        } else {
+          logMsg += `Supabase user found: ${JSON.stringify(data)}\n`;
+        }
         dbUser = data;
-      } catch (err) {}
+      } catch (err) {
+        logMsg += `Supabase query exception: ${err.message}\n`;
+      }
 
       if (!dbUser) {
+        logMsg += `Rejected: user not found in Supabase\n`;
+        fs.writeFileSync(logPath, logMsg);
         socket.emit('forceLogout', 'Usuário não cadastrado. Por favor, crie uma conta.');
         return;
       }
@@ -572,6 +588,7 @@ io.on('connection', (socket) => {
         try {
           dbUser = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userData.id);
           if (!dbUser) {
+            console.log('Offline: User not in SQLite. Auto-registering...');
             const insert = offlineDb.prepare(`
               INSERT OR IGNORE INTO users (id, name, email, password_hash, avatar, bg_color, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -591,8 +608,11 @@ io.on('connection', (socket) => {
               avatar: userData.avatar || null,
               bg_color: userData.bg_color || '#0a0a0c'
             };
+          } else {
+            console.log('Offline: User found in SQLite:', dbUser);
           }
         } catch (err) {
+          console.error('SQLite query error during join:', err);
           dbUser = userData;
         }
       } else {
@@ -638,6 +658,8 @@ io.on('connection', (socket) => {
     }
 
     // Emitir atualizações
+    logMsg += `Success: User joined successfully!\n`;
+    fs.writeFileSync(logPath, logMsg);
     io.emit('updateUsers', Object.values(cinemaState.users));
     socket.emit('syncState', getClientState());
   });
