@@ -161,10 +161,41 @@ function saveRankingToDb(sortedRank) {
   }
 }
 
-async function getUserAcervo(userId) {
+function getSupabaseClientForRequest(req) {
+  if (!supabaseEnabled) return null;
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return supabase;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    if (token && token !== 'null' && token !== 'undefined') {
+      return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      });
+    }
+  }
+  return supabase;
+}
+
+async function getUserAcervo(userId, token) {
   if (supabaseEnabled && supabase) {
     try {
-      const { data, error } = await supabase
+      let client = supabase;
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY && token) {
+        client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+          global: {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        });
+      }
+      const { data, error } = await client
         .from('acervo')
         .select('*')
         .eq('user_id', userId)
@@ -233,7 +264,7 @@ app.post('/api/register', async (req, res) => {
       }
 
       const token = authData.session ? authData.session.access_token : null;
-      const acervo = await getUserAcervo(finalUserId);
+      const acervo = await getUserAcervo(finalUserId, token);
 
       console.log(`Novo usuário registrado via Supabase Auth: ${name} (${email.toLowerCase()})`);
       return res.status(201).json({
@@ -323,14 +354,14 @@ app.post('/api/login', async (req, res) => {
           console.error('Exceção ao auto-criar perfil público no Supabase:', insertErr.message);
         }
 
-        const acervo = await getUserAcervo(authData.user.id);
+        const acervo = await getUserAcervo(authData.user.id, token);
         return res.json({
           success: true,
           user: { id: authData.user.id, name: authData.user.user_metadata.name || 'Usuário', email: authData.user.email, avatar: null, bg_color: '#0a0a0c', token, acervo }
         });
       }
 
-      const acervo = await getUserAcervo(user.id);
+      const acervo = await getUserAcervo(user.id, token);
       return res.json({
         success: true,
         user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar || null, bg_color: user.bg_color || '#0a0a0c', token, acervo }
@@ -419,7 +450,8 @@ app.get('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { data: list, error } = await supabase
+      const client = getSupabaseClientForRequest(req);
+      const { data: list, error } = await client
         .from('acervo')
         .select('*')
         .eq('user_id', user_id)
@@ -465,7 +497,8 @@ app.post('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { error } = await supabase
+      const client = getSupabaseClientForRequest(req);
+      const { error } = await client
         .from('acervo')
         .insert({
           user_id,
@@ -517,7 +550,8 @@ app.delete('/api/acervo', async (req, res) => {
   // Modo Online: Supabase
   if (supabaseEnabled && supabase) {
     try {
-      const { error } = await supabase
+      const client = getSupabaseClientForRequest(req);
+      const { error } = await client
         .from('acervo')
         .delete()
         .eq('user_id', user_id)
