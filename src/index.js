@@ -451,10 +451,19 @@ app.get('/api/acervo', async (req, res) => {
   if (supabaseEnabled && supabase) {
     try {
       const client = getSupabaseClientForRequest(req);
+      
+      let finalUserId = user_id;
+      try {
+        const { data: { user: authUser } } = await client.auth.getUser();
+        if (authUser) finalUserId = authUser.id;
+      } catch (err) {
+        console.warn('Erro ao obter UUID do token no GET, usando user_id:', err.message);
+      }
+
       const { data: list, error } = await client
         .from('acervo')
         .select('*')
-        .eq('user_id', user_id)
+        .eq('user_id', finalUserId)
         .order('id', { ascending: false });
 
       if (error) {
@@ -498,10 +507,19 @@ app.post('/api/acervo', async (req, res) => {
   if (supabaseEnabled && supabase) {
     try {
       const client = getSupabaseClientForRequest(req);
+
+      let finalUserId = user_id;
+      try {
+        const { data: { user: authUser } } = await client.auth.getUser();
+        if (authUser) finalUserId = authUser.id;
+      } catch (err) {
+        console.warn('Erro ao obter UUID do token no POST, usando user_id:', err.message);
+      }
+
       const { error } = await client
         .from('acervo')
         .insert({
-          user_id,
+          user_id: finalUserId,
           url: cleanedUrl,
           title,
           thumbnail,
@@ -551,10 +569,19 @@ app.delete('/api/acervo', async (req, res) => {
   if (supabaseEnabled && supabase) {
     try {
       const client = getSupabaseClientForRequest(req);
+
+      let finalUserId = user_id;
+      try {
+        const { data: { user: authUser } } = await client.auth.getUser();
+        if (authUser) finalUserId = authUser.id;
+      } catch (err) {
+        console.warn('Erro ao obter UUID do token no DELETE, usando user_id:', err.message);
+      }
+
       const { error } = await client
         .from('acervo')
         .delete()
-        .eq('user_id', user_id)
+        .eq('user_id', finalUserId)
         .eq('url', cleanedUrl);
 
       if (error) {
