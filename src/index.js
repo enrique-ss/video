@@ -794,6 +794,8 @@ io.on('connection', (socket) => {
     }
 
     // Verificar se o usuário ainda existe no banco de dados (Supabase/SQLite)
+    let dbUserData = null;
+
     if (supabaseEnabled && supabase) {
       try {
         if (userData.token) {
@@ -805,6 +807,18 @@ io.on('connection', (socket) => {
             delete cinemaState.users[userData.id];
             io.emit('updateUsers', Object.values(cinemaState.users));
             return;
+          }
+
+          // BUSCA OS DADOS REAIS DO BANCO (FONTE DA VERDADE)
+          let clientToUse = supabase;
+          if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            clientToUse = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+              global: { headers: { Authorization: `Bearer ${userData.token}` } }
+            });
+          }
+          const { data: dbUser } = await clientToUse.from('users').select('*').eq('id', userData.id).maybeSingle();
+          if (dbUser) {
+            dbUserData = dbUser;
           }
         } else {
           // Se não tiver token no modo online, é forçado a deslogar imediatamente (sem contas legadas)
@@ -819,7 +833,7 @@ io.on('connection', (socket) => {
       }
     } else if (offlineDb) {
       try {
-        const dbUser = offlineDb.prepare('SELECT id FROM users WHERE id = ?').get(userData.id);
+        const dbUser = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userData.id);
         if (!dbUser) {
           console.log(`Usuário não encontrado ou deletado no SQLite: ${userData.id}. Forçando deslogar.`);
           socket.emit('forceLogout', 'Sua conta não existe mais ou foi excluída. Você foi deslogado.');
@@ -828,20 +842,26 @@ io.on('connection', (socket) => {
           io.emit('updateUsers', Object.values(cinemaState.users));
           return;
         }
+        dbUserData = dbUser;
       } catch (err) {
         console.error('Erro ao verificar existência de usuário no SQLite:', err);
       }
     }
+
+    // A FONTE DA VERDADE É O BANCO, NÃO O CLIENTE!
+    const finalName = dbUserData ? dbUserData.name : (userData.name || 'Convidado ' + Math.floor(Math.random() * 900 + 100));
+    const finalAvatar = dbUserData ? dbUserData.avatar : (userData.avatar || null);
+    const finalBgColor = dbUserData ? dbUserData.bg_color : (userData.bg_color || '#0a0a0c');
 
     let user = Object.values(cinemaState.users).find(u => u.id === userData.id);
 
     if (user) {
       // Reconexão de usuário existente
       user.socketId = socket.id;
-      user.name = userData.name || user.name;
-      if (userData.avatar) user.avatar = userData.avatar;
-      if (userData.bg_color) user.bg_color = userData.bg_color;
-      if (userData.token) user.token = userData.token;
+      user.name = finalName;
+      user.avatar = finalAvatar;
+      user.bg_color = finalBgColor;
+      user.token = userData.token || user.token;
       console.log(`Usuário ${user.name} reconectou sob socket ${socket.id}`);
     } else {
       // Criação de novo usuário ativo
@@ -856,13 +876,13 @@ io.on('connection', (socket) => {
 
       user = {
         id: userData.id,
-        name: userData.name || 'Convidado ' + Math.floor(Math.random() * 900 + 100),
+        name: finalName,
         socketId: socket.id,
         isHost: isFirst,
         authMethod: userData.authMethod || 'email',
         color: assignedColor,
-        avatar: userData.avatar || null,
-        bg_color: userData.bg_color || '#0a0a0c',
+        avatar: finalAvatar,
+        bg_color: finalBgColor,
         token: userData.token || null
       };
 

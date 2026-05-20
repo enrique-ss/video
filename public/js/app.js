@@ -251,20 +251,17 @@ btnSubmitLogin.addEventListener('click', async () => {
 
 // --- RECONNECT & SESSION SYNC ---
 socket.on('connect', () => {
-    // Reconexão: reenvia os dados do usuário ao servidor (que pode ter reiniciado com memória zerada)
-    // Lê sempre do localStorage para garantir que avatar/bg_color mais recentes sejam enviados
+    // Ao conectar, enviamos nossas credenciais (id e token). O servidor fará a busca no Banco de Dados
+    // para recuperar nossa foto, cor e nome sempre atualizados, garantindo a sincronização em tempo real.
     if (myUser && myUser.id) {
-        const savedRaw = localStorage.getItem('cinema_das_guria_user');
-        if (savedRaw) {
-            try {
-                const savedData = JSON.parse(savedRaw);
-                // Mescla: preserva token/acervo da sessão atual, mas restaura avatar/bg_color do localStorage
-                myUser.avatar = savedData.avatar || myUser.avatar || null;
-                myUser.bg_color = savedData.bg_color || myUser.bg_color || '#0a0a0c';
-                myUser.token = savedData.token || myUser.token || null;
-            } catch(e) {}
-        }
-        socket.emit('join', myUser);
+        socket.emit('join', {
+            id: myUser.id,
+            token: myUser.token || null,
+            // Envia como fallback apenas, o servidor dará prioridade ao banco de dados
+            name: myUser.name,
+            avatar: myUser.avatar,
+            bg_color: myUser.bg_color
+        });
     }
 });
 
@@ -573,21 +570,16 @@ socket.on('syncState', (state) => {
     if (serverMe) {
         myUser.isHost = serverMe.isHost;
         myUser.color = serverMe.color;
+        
+        // A FONTE DA VERDADE AGORA É O SERVIDOR (BANCO DE DADOS)
+        // Sempre adotamos o que o servidor enviar para evitar dessincronização (garante a permanência de dados)
         myUser.name = serverMe.name;
+        myUser.avatar = serverMe.avatar;
+        myUser.bg_color = serverMe.bg_color || '#0a0a0c';
 
-        // CORREÇÃO CRÍTICA: O servidor guarda dados em memória volátil (some ao reiniciar/deploy).
-        // Só sobrescrevemos avatar/bg_color se o servidor tiver um valor NÃO-NULO.
-        // O dado local (localStorage/login) é sempre a fonte de verdade.
-        if (serverMe.avatar) {
-            myUser.avatar = serverMe.avatar;
-        }
-        if (serverMe.bg_color && serverMe.bg_color !== '#0a0a0c') {
-            myUser.bg_color = serverMe.bg_color;
-        }
-
-        // Aplica o bg_color atual (local ou do servidor) à página
-        document.documentElement.style.setProperty('--bg-dark', myUser.bg_color || '#0a0a0c');
-        localStorage.setItem('cinema_das_guria_bg', myUser.bg_color || '#0a0a0c');
+        // Aplica o bg_color atual à página
+        document.documentElement.style.setProperty('--bg-dark', myUser.bg_color);
+        localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
         localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
         updateCurrentUserTag();
     }
