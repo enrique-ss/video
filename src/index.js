@@ -200,6 +200,10 @@ async function getUserAcervo(userId, token) {
         .select('*')
         .eq('user_id', userId)
         .order('id', { ascending: false });
+      if (error) {
+        console.error('Erro ao buscar acervo Supabase:', error.message || error);
+        return [];
+      }
       return data || [];
     } catch (e) {
       console.error('Erro ao buscar acervo no login/registro Supabase:', e);
@@ -214,6 +218,130 @@ async function getUserAcervo(userId, token) {
     }
   }
   return [];
+}
+
+function getSupabaseClientWithToken(token) {
+  if (!supabaseEnabled || !supabase) return null;
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) return supabase;
+  if (!token) return supabase;
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+}
+
+async function getUserFromDb(userId, token) {
+  if (supabaseEnabled && supabase) {
+    const client = getSupabaseClientWithToken(token);
+    const { data, error } = await client.from('users').select('*').eq('id', userId).maybeSingle();
+    if (error) {
+      console.error('Erro ao buscar usuário no Supabase:', error.message || error);
+      return null;
+    }
+    return data;
+  }
+  if (offlineDb) {
+    try {
+      return offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userId) || null;
+    } catch (err) {
+      console.error('Erro ao buscar usuário no SQLite:', err.message);
+      return null;
+    }
+  }
+  return null;
+}
+
+async function authenticateRequest(req) {
+  if (supabaseEnabled && supabase) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.split(' ')[1];
+    if (!token || token === 'null' || token === 'undefined') return null;
+    try {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (error || !data.user) return null;
+      return { id: data.user.id, token };
+    } catch (err) {
+      console.error('Erro ao validar token:', err.message);
+      return null;
+    }
+  }
+  const userId = req.query.user_id || req.body?.user_id;
+  if (!userId || !offlineDb) return null;
+  const user = offlineDb.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!user) return null;
+  return { id: userId, token: null };
+}
+
+function sanitizeProfilePayload({ name, avatar, bg_color }) {
+  const result = {};
+  if (name !== undefined && String(name).trim()) {
+    result.name = String(name).trim().substring(0, 80);
+  }
+  if (avatar !== undefined) {
+    result.avatar = avatar || null;
+    if (result.avatar && result.avatar.length > 500000) {
+      return { error: 'A imagem de perfil é muito grande. Escolha uma foto menor.' };
+    }
+  }
+  if (bg_color !== undefined) {
+    const color = String(bg_color).trim();
+    result.bg_color = /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#0a0a0c';
+  }
+  return { data: result };
+}
+
+async function persistUserProfile(userId, profileData, token) {
+  const sanitized = sanitizeProfilePayload(profileData);
+  if (sanitized.error) return { success: false, error: sanitized.error };
+  const updates = sanitized.data;
+  if (Object.keys(updates).length === 0) {
+    return { success: false, error: 'Nenhum dado de perfil para salvar.' };
+  }
+
+  if (supabaseEnabled && supabase) {
+    try {
+      const client = getSupabaseClientWithToken(token);
+      const { error } = await client.from('users').update(updates).eq('id', userId);
+      if (error) {
+        console.error('Erro ao persistir perfil no Supabase:', error.message || error);
+        return { success: false, error: 'Não foi possível salvar o perfil no servidor.' };
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('Exceção ao persistir perfil no Supabase:', err.message);
+      return { success: false, error: 'Falha interna ao salvar o perfil.' };
+    }
+  }
+
+  if (offlineDb) {
+    try {
+      const existing = offlineDb.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      if (!existing) return { success: false, error: 'Usuário não encontrado.' };
+      const nextName = updates.name !== undefined ? updates.name : existing.name;
+      const nextAvatar = updates.avatar !== undefined ? updates.avatar : existing.avatar;
+      const nextBg = updates.bg_color !== undefined ? updates.bg_color : (existing.bg_color || '#0a0a0c');
+      offlineDb.prepare('UPDATE users SET name = ?, avatar = ?, bg_color = ? WHERE id = ?')
+        .run(nextName, nextAvatar, nextBg, userId);
+      return { success: true };
+    } catch (err) {
+      console.error('Erro ao persistir perfil no SQLite:', err.message);
+      return { success: false, error: 'Falha interna ao salvar o perfil.' };
+    }
+  }
+
+  return { success: false, error: 'Banco de dados não configurado.' };
+}
+
+function buildPublicUserPayload(dbUser, token, acervo) {
+  return {
+    id: dbUser.id,
+    name: dbUser.name,
+    email: dbUser.email,
+    avatar: dbUser.avatar || null,
+    bg_color: dbUser.bg_color || '#0a0a0c',
+    token: token || null,
+    acervo: acervo || []
+  };
 }
 
 // API de Registro de Usuários
@@ -256,19 +384,24 @@ app.post('/api/register', async (req, res) => {
       }
 
       // 2. Inserir os dados visíveis no banco de dados público (Tabela users)
-      const { error: insertError } = await clientToUse.from('users').insert({
+      const userRow = {
         id: finalUserId,
         name,
         email: email.toLowerCase(),
-        password_hash: passwordHash, // Mantido por compatibilidade de fallback
+        password_hash: passwordHash,
         avatar: avatar || null,
         bg_color: '#0a0a0c',
         created_at: createdAt
-      });
+      };
 
+      const { error: insertError } = await clientToUse.from('users').insert(userRow);
       if (insertError) {
-        console.error('Supabase public user insert error:', insertError);
-        // Se der erro ao salvar os dados públicos, avisamos mas a conta Auth já existe
+        console.error('Supabase public user insert error:', insertError.message || insertError);
+        const { error: upsertError } = await clientToUse.from('users').upsert(userRow);
+        if (upsertError) {
+          console.error('Supabase public user upsert error:', upsertError.message || upsertError);
+          return res.status(500).json({ error: 'Conta criada, mas falhou ao salvar o perfil. Tente fazer login.' });
+        }
       }
 
       const acervo = await getUserAcervo(finalUserId, token);
@@ -402,6 +535,49 @@ app.post('/api/login', async (req, res) => {
     console.error('Erro no login SQLite:', err);
     return res.status(500).json({ error: 'Falha interna ao realizar login.' });
   }
+});
+
+// Perfil do usuário autenticado (fonte da verdade no banco)
+app.get('/api/profile', async (req, res) => {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
+    return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.' });
+  }
+
+  const dbUser = await getUserFromDb(auth.id, auth.token);
+  if (!dbUser) {
+    return res.status(404).json({ error: 'Perfil não encontrado.' });
+  }
+
+  const acervo = await getUserAcervo(auth.id, auth.token);
+  return res.json({
+    success: true,
+    user: buildPublicUserPayload(dbUser, auth.token, acervo)
+  });
+});
+
+app.put('/api/profile', async (req, res) => {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
+    return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.' });
+  }
+
+  const { name, avatar, bg_color } = req.body || {};
+  const result = await persistUserProfile(auth.id, { name, avatar, bg_color }, auth.token);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const dbUser = await getUserFromDb(auth.id, auth.token);
+  if (!dbUser) {
+    return res.status(404).json({ error: 'Perfil não encontrado após salvar.' });
+  }
+
+  const acervo = await getUserAcervo(auth.id, auth.token);
+  return res.json({
+    success: true,
+    user: buildPublicUserPayload(dbUser, auth.token, acervo)
+  });
 });
 
 // Lista de GIFs padrão/fallback (utilizada quando não há GIPHY_API_KEY no .env)
@@ -544,7 +720,10 @@ app.post('/api/acervo', async (req, res) => {
         console.error('Erro ao salvar acervo Supabase:', error.message || error);
         return res.status(500).json({ error: 'Erro ao salvar no Supabase: ' + (error.message || error) });
       }
-      return res.status(201).json({ success: true });
+      const list = await getUserAcervo(finalUserId, req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.split(' ')[1]
+        : null);
+      return res.status(201).json({ success: true, list });
     } catch (err) {
       console.error('Exceção ao salvar acervo Supabase:', err.message);
       return res.status(500).json({ error: 'Falha interna ao salvar no acervo.' });
@@ -563,7 +742,8 @@ app.post('/api/acervo', async (req, res) => {
     `);
     insert.run(user_id, cleanedUrl, title, thumbnail, new Date().toISOString());
 
-    return res.status(201).json({ success: true });
+    const list = offlineDb.prepare('SELECT * FROM acervo WHERE user_id = ? ORDER BY id DESC').all(user_id);
+    return res.status(201).json({ success: true, list });
   } catch (err) {
     console.error('Erro ao salvar no acervo SQLite:', err);
     return res.status(500).json({ error: 'Falha interna ao salvar no acervo.' });
@@ -1063,53 +1243,34 @@ io.on('connection', (socket) => {
   // Módulo de Atualização de Perfil (Nome, Avatar e Cor de Fundo)
   socket.on('updateProfile', async (data) => {
     const user = Object.values(cinemaState.users).find(u => u.socketId === socket.id);
-    if (!user) return;
-
-    if (data.name && data.name.trim()) {
-      user.name = data.name.trim();
-    }
-    user.avatar = data.avatar || null;
-    user.bg_color = data.bg_color || '#0a0a0c';
-
-    // Persistir: Supabase (online) ou SQLite (offline)
-    if (supabaseEnabled && supabase) {
-      try {
-        let clientToUse = supabase;
-        if (!process.env.SUPABASE_SERVICE_ROLE_KEY && user.token) {
-          clientToUse = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${user.token}` } }
-          });
-        }
-        
-        // Sempre usa o cliente com service role key ou token quando disponível (contorna RLS sem depender de políticas)
-        // Usa UPDATE (não upsert) porque o usuário sempre existe no banco ao fazer updateProfile
-        const { error } = await clientToUse
-          .from('users')
-          .update({
-            name: user.name,
-            avatar: user.avatar,
-            bg_color: user.bg_color
-          })
-          .eq('id', user.id);
-        
-        if (error) {
-          console.error('Erro de banco ao atualizar perfil no Supabase:', error.message || error);
-        } else {
-          console.log(`Perfil do usuário ${user.id} salvo no Supabase: avatar=${user.avatar ? '[presente]' : 'null'}, bg=${user.bg_color}`);
-        }
-      } catch (err) {
-        console.error('Erro inesperado ao atualizar perfil no Supabase:', err.message);
-      }
-    } else if (offlineDb) {
-      try {
-        const update = offlineDb.prepare('UPDATE users SET name = ?, avatar = ?, bg_color = ? WHERE id = ?');
-        update.run(user.name, user.avatar, data.bg_color || '#0a0a0c', user.id);
-      } catch (err) {
-        console.error('Erro ao atualizar usuário no SQLite:', err);
-      }
+    if (!user) {
+      socket.emit('profileError', 'Você ainda não entrou na sala. Aguarde a conexão e tente novamente.');
+      return;
     }
 
-    // Atualizar avatares do chat histórico pelo ID do usuário
+    const profilePayload = {
+      name: data.name !== undefined ? data.name : user.name,
+      avatar: data.avatar !== undefined ? data.avatar : user.avatar,
+      bg_color: data.bg_color !== undefined ? data.bg_color : user.bg_color
+    };
+
+    const result = await persistUserProfile(user.id, profilePayload, user.token);
+    if (!result.success) {
+      socket.emit('profileError', result.error);
+      return;
+    }
+
+    const dbUser = await getUserFromDb(user.id, user.token);
+    if (dbUser) {
+      user.name = dbUser.name;
+      user.avatar = dbUser.avatar || null;
+      user.bg_color = dbUser.bg_color || '#0a0a0c';
+    } else {
+      if (profilePayload.name) user.name = profilePayload.name;
+      user.avatar = profilePayload.avatar || null;
+      user.bg_color = profilePayload.bg_color || '#0a0a0c';
+    }
+
     cinemaState.chatHistory.forEach(msg => {
       if (msg.userId === user.id) {
         msg.avatar = user.avatar;
@@ -1120,8 +1281,14 @@ io.on('connection', (socket) => {
     const loggedAvatar = (user.avatar && user.avatar.length > 60)
       ? `${user.avatar.substring(0, 30)}... [Base64 Cortado]`
       : user.avatar;
-    console.log(`Usuário ${user.id} atualizou perfil: Nome = ${user.name}, Avatar = ${loggedAvatar}, Cor = ${data.bg_color || '#0a0a0c'}`);
+    console.log(`Usuário ${user.id} atualizou perfil: Nome = ${user.name}, Avatar = ${loggedAvatar}, Cor = ${user.bg_color}`);
 
+    socket.emit('profileUpdated', {
+      id: user.id,
+      name: user.name,
+      avatar: user.avatar,
+      bg_color: user.bg_color
+    });
     io.emit('updateUsers', Object.values(cinemaState.users));
     io.emit('stateChange', getClientState());
   });

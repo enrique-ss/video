@@ -1,13 +1,121 @@
 const socket = io();
 
-// Load saved custom background color immediately
-const savedBg = localStorage.getItem('cinema_das_guria_bg');
-if (savedBg) {
-    document.documentElement.style.setProperty('--bg-dark', savedBg);
+const SESSION_STORAGE_KEY = 'cinema_das_guria_user';
+
+function applyUserTheme(bgColor) {
+    const color = bgColor || '#0a0a0c';
+    document.documentElement.style.setProperty('--bg-dark', color);
 }
 
-// Configurações globais
-const ENV = window.ENV || { TIKTOK_LOGIN_ENABLED: false };
+function saveUserSession(user) {
+    if (!user || !user.id) return;
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearUserSession() {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem('cinema_das_guria_bg');
+}
+
+function getAuthHeaders(extraHeaders = {}) {
+    const headers = { ...extraHeaders };
+    if (myUser && myUser.token) {
+        headers['Authorization'] = `Bearer ${myUser.token}`;
+    }
+    return headers;
+}
+
+async function refreshUserFromServer() {
+    if (!myUser || !myUser.id) return false;
+    try {
+        const headers = getAuthHeaders();
+        if (runtimeNeedsToken() && !myUser.token) return false;
+
+        const profileUrl = runtimeNeedsToken()
+            ? '/api/profile'
+            : `/api/profile?user_id=${encodeURIComponent(myUser.id)}`;
+        const res = await fetch(profileUrl, { headers });
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.user) {
+            if (res.status === 401) {
+                handleSessionExpired(data.error);
+            }
+            return false;
+        }
+
+        applyServerUser(data.user);
+        return true;
+    } catch (err) {
+        console.error('Erro ao sincronizar perfil do servidor:', err);
+        return false;
+    }
+}
+
+function runtimeNeedsToken() {
+    return ENV.APP_MODE === 'online';
+}
+
+function applyServerUser(serverUser) {
+    myUser.id = serverUser.id;
+    myUser.name = serverUser.name;
+    myUser.avatar = serverUser.avatar || null;
+    myUser.bg_color = serverUser.bg_color || '#0a0a0c';
+    if (serverUser.token) myUser.token = serverUser.token;
+    if (serverUser.acervo) myUser.acervo = serverUser.acervo;
+
+    applyUserTheme(myUser.bg_color);
+    saveUserSession(myUser);
+    updateCurrentUserTag();
+}
+
+function handleSessionExpired(message) {
+    clearUserSession();
+    myUser = {
+        id: '',
+        name: '',
+        socketId: '',
+        isHost: false,
+        authMethod: 'guest',
+        tiktokHandle: '',
+        color: '',
+        avatar: null,
+        bg_color: '#0a0a0c',
+        acervo: []
+    };
+    if (loginOverlay) {
+        loginOverlay.classList.remove('hidden');
+        loginOverlay.style.opacity = '1';
+    }
+    switchToTab('login');
+    if (message) alert(message);
+}
+
+async function saveProfileToServer(profileData) {
+    const headers = getAuthHeaders({ 'Content-Type': 'application/json' });
+    if (runtimeNeedsToken() && !myUser.token) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+    }
+
+    const payload = { ...profileData };
+    if (!runtimeNeedsToken()) {
+        payload.user_id = myUser.id;
+    }
+
+    const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Não foi possível salvar o perfil.');
+    }
+    applyServerUser(data.user);
+    return data.user;
+}
+
+// Configurações globais (carregadas via /env.js)
+const ENV = window.ENV || { APP_MODE: 'offline', TIKTOK_LOGIN_ENABLED: false };
 
 // Estrutura de dados do usuário (User)
 let myUser = {
@@ -18,7 +126,10 @@ let myUser = {
     authMethod: 'guest',
     tiktokHandle: '',
     color: '',
-    avatar: null
+    avatar: null,
+    bg_color: '#0a0a0c',
+    token: null,
+    acervo: []
 };
 
 // DOM Elements
@@ -266,40 +377,60 @@ socket.on('connect', () => {
 });
 
 socket.on('forceLogout', (msg) => {
-    localStorage.removeItem('cinema_das_guria_user');
-    myUser = {
-        id: '',
-        name: '',
-        socketId: '',
-        isHost: false,
-        authMethod: 'email',
-        tiktokHandle: '',
-        color: '',
-        avatar: null
-    };
-    if (loginOverlay) {
-        loginOverlay.classList.remove('hidden');
-        loginOverlay.style.opacity = '1';
-    }
-    switchToTab('login');
-    if (msg) alert(msg);
+    handleSessionExpired(msg || 'Sua sessão expirou. Faça login novamente.');
+});
+
+socket.on('profileUpdated', (profile) => {
+    if (!profile || profile.id !== myUser.id) return;
+    myUser.name = profile.name;
+    myUser.avatar = profile.avatar || null;
+    myUser.bg_color = profile.bg_color || '#0a0a0c';
+    applyUserTheme(myUser.bg_color);
+    saveUserSession(myUser);
+    updateCurrentUserTag();
+});
+
+socket.on('profileError', (msg) => {
+    alert(msg || 'Erro ao salvar perfil.');
 });
 
 // --- SESSION CONTROL (TK-06 & TK-07) ---
-const savedUser = localStorage.getItem('cinema_das_guria_user');
-if (savedUser) {
+(async function restoreSession() {
+    const savedUser = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!savedUser) {
+        if (loginOverlay) loginOverlay.classList.remove('hidden');
+        switchToTab('login');
+        return;
+    }
+
     try {
         myUser = JSON.parse(savedUser);
-        completeLogin(myUser.name, myUser.id, myUser.avatar, myUser.color, myUser.bg_color, myUser.token, myUser.acervo);
+        applyUserTheme(myUser.bg_color);
+        completeLogin(
+            myUser.name,
+            myUser.id,
+            myUser.avatar,
+            myUser.color,
+            myUser.bg_color,
+            myUser.token,
+            myUser.acervo,
+            false
+        );
+
+        const synced = await refreshUserFromServer();
+        if (synced) {
+            socket.emit('join', myUser);
+            getAcervo().then(() => renderAcervo());
+        } else if (runtimeNeedsToken() && !myUser.token) {
+            handleSessionExpired('Sessão expirada. Faça login novamente.');
+        }
     } catch (err) {
         console.error('Falha ao restaurar sessão de usuário:', err);
+        clearUserSession();
         if (loginOverlay) loginOverlay.classList.remove('hidden');
         switchToTab('login');
     }
-} else {
-    if (loginOverlay) loginOverlay.classList.remove('hidden');
-    switchToTab('login');
-}
+})();
 
 // Evento de clique no nome do usuário para abrir o menu de opções
 if (currentUserTag) {
@@ -319,7 +450,7 @@ if (currentUserTag) {
     });
 }
 
-function completeLogin(name, id, avatar, color, bg_color, token, acervo) {
+function completeLogin(name, id, avatar, color, bg_color, token, acervo, emitJoin = true) {
     myUser.name = name;
     if (id) {
         myUser.id = id;
@@ -340,19 +471,15 @@ function completeLogin(name, id, avatar, color, bg_color, token, acervo) {
         myUser.acervo = [];
     }
 
-    localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
-    
-    // Aplicar a cor de fundo do site de cada usuário
-    document.documentElement.style.setProperty('--bg-dark', myUser.bg_color);
-    localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
+    applyUserTheme(myUser.bg_color);
+    saveUserSession(myUser);
 
-    socket.emit('join', myUser);
+    if (emitJoin) {
+        socket.emit('join', myUser);
+    }
 
-    // Sincroniza acervo em segundo plano para garantir que esteja sempre atualizado com o servidor
     if (myUser.id) {
-        getAcervo().then(() => {
-            renderAcervo();
-        });
+        getAcervo().then(() => renderAcervo());
     }
 
     if (loginOverlay) loginOverlay.style.opacity = '0';
@@ -577,10 +704,8 @@ socket.on('syncState', (state) => {
         myUser.avatar = serverMe.avatar;
         myUser.bg_color = serverMe.bg_color || '#0a0a0c';
 
-        // Aplica o bg_color atual à página
-        document.documentElement.style.setProperty('--bg-dark', myUser.bg_color);
-        localStorage.setItem('cinema_das_guria_bg', myUser.bg_color);
-        localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+        applyUserTheme(myUser.bg_color);
+        saveUserSession(myUser);
         updateCurrentUserTag();
     }
 
@@ -998,7 +1123,7 @@ async function getAcervo() {
         
         // Mantém o acervo fisicamente vinculado e gravado diretamente no objeto do usuário!
         myUser.acervo = list;
-        localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
+        saveUserSession(myUser);
         
         return list;
     } catch(err) {
@@ -1019,9 +1144,14 @@ async function addAcervoItem(url) {
             headers,
             body: JSON.stringify({ user_id: myUser.id, url })
         });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            const errData = await res.json();
-            alert('Erro ao salvar no acervo: ' + (errData.error || 'Erro desconhecido'));
+            alert('Erro ao salvar no acervo: ' + (data.error || 'Erro desconhecido'));
+            return;
+        }
+        if (data.list) {
+            myUser.acervo = data.list;
+            saveUserSession(myUser);
         }
     } catch(err) {
         console.error('Erro ao salvar no acervo:', err);
@@ -1044,7 +1174,10 @@ async function deleteAcervoItem(url) {
         if (!res.ok) {
             const errData = await res.json();
             alert('Erro ao deletar do acervo: ' + (errData.error || 'Erro desconhecido'));
+            return;
         }
+        await getAcervo();
+        saveUserSession(myUser);
     } catch(err) {
         console.error('Erro ao deletar do acervo:', err);
         alert('Erro de conexão ao deletar do acervo.');
@@ -1136,7 +1269,7 @@ if (backToMenuBtn) {
 
 if (modalLogoutBtn) {
     modalLogoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('cinema_das_guria_user');
+        clearUserSession();
         window.location.reload();
     });
 }
@@ -1211,9 +1344,7 @@ if (openEditBtn) {
             selectedAvatarEmoji = currentAvatar || null;
         }
 
-        // Carregar cor de fundo atual no input color
-        const currentBg = localStorage.getItem('cinema_das_guria_bg') || '#0a0a0c';
-        editBgColor.value = currentBg;
+        editBgColor.value = myUser.bg_color || '#0a0a0c';
     });
 }
 
@@ -1252,30 +1383,34 @@ if (editAvatarFile) {
 
 // Salvar as Alterações de Perfil
 if (saveProfileBtn) {
-    saveProfileBtn.addEventListener('click', () => {
-        let newAvatar = selectedAvatarEmoji || null;
-
-        // Salvar nas configurações locais do usuário
-        myUser.avatar = newAvatar;
+    saveProfileBtn.addEventListener('click', async () => {
+        const newAvatar = selectedAvatarEmoji || null;
         const newBg = editBgColor.value;
-        myUser.bg_color = newBg;
-        localStorage.setItem('cinema_das_guria_user', JSON.stringify(myUser));
 
-        // Aplicar e salvar a cor de fundo do site
-        document.documentElement.style.setProperty('--bg-dark', newBg);
-        localStorage.setItem('cinema_das_guria_bg', newBg);
+        saveProfileBtn.disabled = true;
+        const originalLabel = saveProfileBtn.innerText;
+        saveProfileBtn.innerText = 'Salvando...';
 
-        // Notificar servidor via Websocket
-        socket.emit('updateProfile', {
-            name: myUser.name,
-            avatar: newAvatar,
-            bg_color: newBg
-        });
+        try {
+            await saveProfileToServer({
+                name: myUser.name,
+                avatar: newAvatar,
+                bg_color: newBg
+            });
 
-        updateCurrentUserTag();
+            socket.emit('updateProfile', {
+                name: myUser.name,
+                avatar: myUser.avatar,
+                bg_color: myUser.bg_color
+            });
 
-        // Fechar modal
-        if (optionsModal) optionsModal.classList.add('hidden');
+            if (optionsModal) optionsModal.classList.add('hidden');
+        } catch (err) {
+            alert(err.message || 'Erro ao salvar perfil.');
+        } finally {
+            saveProfileBtn.disabled = false;
+            saveProfileBtn.innerText = originalLabel;
+        }
     });
 }
 
