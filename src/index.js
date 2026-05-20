@@ -246,9 +246,17 @@ app.post('/api/register', async (req, res) => {
 
       // Pega o ID seguro e nativo gerado pelo Supabase Auth (UUID)
       const finalUserId = (authData.user && authData.user.id) ? authData.user.id : userId;
+      const token = authData.session ? authData.session.access_token : null;
+
+      let clientToUse = supabase;
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY && token) {
+        clientToUse = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+      }
 
       // 2. Inserir os dados visíveis no banco de dados público (Tabela users)
-      const { error: insertError } = await supabase.from('users').insert({
+      const { error: insertError } = await clientToUse.from('users').insert({
         id: finalUserId,
         name,
         email: email.toLowerCase(),
@@ -263,7 +271,6 @@ app.post('/api/register', async (req, res) => {
         // Se der erro ao salvar os dados públicos, avisamos mas a conta Auth já existe
       }
 
-      const token = authData.session ? authData.session.access_token : null;
       const acervo = await getUserAcervo(finalUserId, token);
 
       console.log(`Novo usuário registrado via Supabase Auth: ${name} (${email.toLowerCase()})`);
@@ -325,20 +332,27 @@ app.post('/api/login', async (req, res) => {
         return res.status(401).json({ error: 'E-mail ou senha incorretos!' });
       }
 
+      const token = authData.session ? authData.session.access_token : null;
+
+      let clientToUse = supabase;
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY && token) {
+        clientToUse = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+      }
+
       // 2. Login Auth oficial aprovado -> buscar dados públicos da conta
-      const { data: user, error: profileError } = await supabase
+      const { data: user, error: profileError } = await clientToUse
         .from('users')
         .select('*')
         .eq('id', authData.user.id)
         .maybeSingle();
 
-      const token = authData.session ? authData.session.access_token : null;
-
       if (!user) {
         // Fallback caso a tabela users não tenha o registro (sync error no momento da criação)
         // Garante a auto-criação na tabela pública para permitir que edições e fotos funcionem perfeitamente!
         try {
-          const { error: autoInsertError } = await supabase.from('users').insert({
+          const { error: autoInsertError } = await clientToUse.from('users').insert({
             id: authData.user.id,
             name: authData.user.user_metadata.name || 'Usuário',
             email: authData.user.email,
@@ -1040,9 +1054,16 @@ io.on('connection', (socket) => {
     // Persistir: Supabase (online) ou SQLite (offline)
     if (supabaseEnabled && supabase) {
       try {
-        // Sempre usa o cliente com service role key quando disponível (contorna RLS sem depender de políticas)
+        let clientToUse = supabase;
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY && user.token) {
+          clientToUse = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${user.token}` } }
+          });
+        }
+        
+        // Sempre usa o cliente com service role key ou token quando disponível (contorna RLS sem depender de políticas)
         // Usa UPDATE (não upsert) porque o usuário sempre existe no banco ao fazer updateProfile
-        const { error } = await supabase
+        const { error } = await clientToUse
           .from('users')
           .update({
             name: user.name,
