@@ -6,7 +6,9 @@
   "scripts": {
     "setup": "node src/setup.js",
     "dev": "npx kill-port 3002 && node --watch src/index.js",
-    "start": "node src/index.js"
+    "dev:offline": "npx kill-port 3002 && node --watch src/index.js",
+    "start": "node src/index.js",
+    "db:reset": "node src/setup.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",

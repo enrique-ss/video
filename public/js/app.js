@@ -1108,11 +1108,10 @@ function extractYoutubeId(url) {
 async function getAcervo() {
     if (!myUser || !myUser.id) return [];
     try {
-        const headers = {};
-        if (myUser.token) {
-            headers['Authorization'] = `Bearer ${myUser.token}`;
-        }
-        const res = await fetch(`/api/acervo?user_id=${myUser.id}&_=${Date.now()}`, { headers });
+        const url = runtimeNeedsToken()
+            ? `/api/acervo?_=${Date.now()}`
+            : `/api/acervo?user_id=${encodeURIComponent(myUser.id)}&_=${Date.now()}`;
+        const res = await fetch(url, { headers: getAuthHeaders() });
         if (!res.ok) {
             const errData = await res.json();
             console.error('Erro de API ao buscar acervo:', errData.error);
@@ -1135,14 +1134,12 @@ async function getAcervo() {
 async function addAcervoItem(url) {
     if (!myUser || !myUser.id) return;
     try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (myUser.token) {
-            headers['Authorization'] = `Bearer ${myUser.token}`;
-        }
+        const body = { url };
+        if (!runtimeNeedsToken()) body.user_id = myUser.id;
         const res = await fetch('/api/acervo', {
             method: 'POST',
-            headers,
-            body: JSON.stringify({ user_id: myUser.id, url })
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(body)
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -1162,22 +1159,24 @@ async function addAcervoItem(url) {
 async function deleteAcervoItem(url) {
     if (!myUser || !myUser.id) return;
     try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (myUser.token) {
-            headers['Authorization'] = `Bearer ${myUser.token}`;
-        }
+        const body = { url };
+        if (!runtimeNeedsToken()) body.user_id = myUser.id;
         const res = await fetch('/api/acervo', {
             method: 'DELETE',
-            headers,
-            body: JSON.stringify({ user_id: myUser.id, url })
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(body)
         });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            const errData = await res.json();
-            alert('Erro ao deletar do acervo: ' + (errData.error || 'Erro desconhecido'));
+            alert('Erro ao deletar do acervo: ' + (data.error || 'Erro desconhecido'));
             return;
         }
-        await getAcervo();
-        saveUserSession(myUser);
+        if (data.list) {
+            myUser.acervo = data.list;
+            saveUserSession(myUser);
+        } else {
+            await getAcervo();
+        }
     } catch(err) {
         console.error('Erro ao deletar do acervo:', err);
         alert('Erro de conexão ao deletar do acervo.');

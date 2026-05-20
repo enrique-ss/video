@@ -6,6 +6,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const dataDir = path.join(projectRoot, 'data');
 const dbPath = path.join(dataDir, 'video.sqlite');
 
+/** Schema local — espelha supabase/schema.sql (com senha para modo offline). */
 function applySchema(db) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -13,74 +14,48 @@ function applySchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT UNIQUE,
-      password_hash TEXT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
       avatar TEXT,
-      bg_color TEXT,
-      created_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS rooms (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      created_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS history (
-      id TEXT PRIMARY KEY,
-      room_id TEXT,
-      video_url TEXT,
-      added_by_user_id TEXT,
-      added_at TEXT
+      bg_color TEXT NOT NULL DEFAULT '#0a0a0c',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS acervo (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT,
-      url TEXT,
+      user_id TEXT NOT NULL,
+      url TEXT NOT NULL,
       title TEXT,
       thumbnail TEXT,
-      created_at TEXT
+      created_at TEXT NOT NULL,
+      UNIQUE (user_id, url),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE INDEX IF NOT EXISTS idx_acervo_user_id ON acervo(user_id);
   `);
 
-  // Migração segura para adicionar colunas caso o banco já existisse
-  try {
-    db.prepare("ALTER TABLE users ADD COLUMN name TEXT").run();
-  } catch (err) {}
-  try {
-    db.prepare("ALTER TABLE users ADD COLUMN avatar TEXT").run();
-  } catch (err) {}
-  try {
-    db.prepare("ALTER TABLE users ADD COLUMN bg_color TEXT").run();
-  } catch (err) {}
+  for (const sql of [
+    "ALTER TABLE users ADD COLUMN updated_at TEXT",
+    "ALTER TABLE users ADD COLUMN bg_color TEXT DEFAULT '#0a0a0c'"
+  ]) {
+    try { db.prepare(sql).run(); } catch (_) {}
+  }
 }
 
 function recreateDatabase() {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = new Database(dbPath);
-  db.pragma('foreign_keys = OFF');
-  db.exec(`
-    DROP TABLE IF EXISTS history;
-    DROP TABLE IF EXISTS rooms;
-    DROP TABLE IF EXISTS users;
-  `);
-  db.pragma('foreign_keys = ON');
+  db.exec('DROP TABLE IF EXISTS acervo; DROP TABLE IF EXISTS users;');
   applySchema(db);
-  db.exec('VACUUM;');
   db.close();
-}
-
-function configurarBanco() {
-  recreateDatabase();
-  console.log(`Banco de vídeo recriado em ${dbPath}`);
-  return true;
+  console.log(`SQLite recriado em ${dbPath}`);
 }
 
 if (require.main === module) {
-  const ok = configurarBanco();
-  process.exitCode = ok ? 0 : 1;
+  recreateDatabase();
 }
 
-module.exports = { configurarBanco, applySchema, dbPath };
+module.exports = { applySchema, dbPath, recreateDatabase };
