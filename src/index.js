@@ -3,7 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cookieParser = require('cookie-parser');
 
-const { PORT, isOnline, isOffline, sqlite, dbPath, publicPath } = require('./config');
+const { PORT, isOnline, isOffline, hasServiceRole, sqlite, dbPath, publicPath } = require('./config');
 const { mountRoutes } = require('./routes');
 const { mountSocketGame } = require('./socket-game');
 
@@ -29,6 +29,9 @@ if (isOffline && !sqlite) {
 server.listen(PORT, '0.0.0.0', () => {
   if (isOnline) {
     console.log(`Cinema das Guria → http://localhost:${PORT} (online / Supabase)`);
+    if (!hasServiceRole) {
+      console.warn('AVISO: SUPABASE_SERVICE_ROLE_KEY ausente — ative fix-rls.sql ou adicione a chave no Render.');
+    }
   } else {
     console.log(`Cinema das Guria → http://localhost:${PORT} (offline / SQLite)`);
     console.log(`Banco local: ${dbPath}`);

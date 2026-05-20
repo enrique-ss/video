@@ -45,7 +45,9 @@ CREATE TRIGGER users_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION set_users_updated_at();
 
--- RLS desligado: o backend (Render) usa SERVICE_ROLE_KEY e grava por você.
--- Se quiser RLS no futuro, use políticas por auth.uid() = id.
+-- RLS DESLIGADO (recomendado para este app):
+-- O navegador NÃO fala com o Supabase direto — só o Node no Render grava users/acervo.
+-- Login/senha ficam no Auth; o backend usa SERVICE_ROLE_KEY e controla tudo.
+-- No painel Supabase você pode: Table → users → desmarcar "Enable RLS" (mesmo efeito).
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE acervo DISABLE ROW LEVEL SECURITY;

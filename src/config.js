@@ -20,12 +20,33 @@ const hasSupabase = Boolean(
 );
 const isOnline = requestedMode === 'online' && hasSupabase;
 
-const supabase = isOnline
-  ? createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-    )
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+/** Cliente admin: ignora RLS. Obrigatório no Render para gravar users/acervo. */
+const supabaseAdmin = isOnline && serviceRoleKey
+  ? createClient(supabaseUrl, serviceRoleKey)
   : null;
+
+/** Auth + fallback (signIn, signUp, getUser). */
+const supabase = isOnline
+  ? createClient(supabaseUrl, serviceRoleKey || supabaseAnonKey)
+  : null;
+
+/** Cliente com JWT do usuário — usado se não houver SERVICE_ROLE (RLS com políticas). */
+function createUserClient(accessToken) {
+  if (!isOnline) return null;
+  if (supabaseAdmin) return supabaseAdmin;
+  if (!accessToken) return supabase;
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } }
+  });
+}
+
+function tableClient(accessToken) {
+  return createUserClient(accessToken) || supabase;
+}
 
 let sqlite = null;
 try {
@@ -48,6 +69,10 @@ module.exports = {
   isOnline,
   isOffline: !isOnline,
   supabase,
+  supabaseAdmin,
+  hasServiceRole: Boolean(serviceRoleKey),
+  createUserClient,
+  tableClient,
   sqlite,
   dbPath,
   PREDEFINED_COLORS,

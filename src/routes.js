@@ -76,7 +76,7 @@ function mountRoutes(app) {
   app.get('/api/acervo', async (req, res) => {
     const auth = await db.parseAuth(req);
     if (!auth) return res.status(401).json({ error: 'Sessão inválida.' });
-    const list = await db.listAcervo(auth.id);
+    const list = await db.listAcervo(auth.id, auth.token);
     res.json({ success: true, list });
   });
 
@@ -89,7 +89,7 @@ function mountRoutes(app) {
     try {
       const url = extractRealUrl(rawUrl);
       const meta = await resolveVideoMetadata(url);
-      const list = await db.addToAcervo(auth.id, { url, title: meta.title, thumbnail: meta.thumbnail });
+      const list = await db.addToAcervo(auth.id, { url, title: meta.title, thumbnail: meta.thumbnail }, auth.token);
       res.status(201).json({ success: true, list });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -103,7 +103,7 @@ function mountRoutes(app) {
     if (!url) return res.status(400).json({ error: 'URL obrigatória.' });
 
     try {
-      const list = await db.removeFromAcervo(auth.id, url);
+      const list = await db.removeFromAcervo(auth.id, url, auth.token);
       res.json({ success: true, list });
     } catch (err) {
       res.status(500).json({ error: err.message });

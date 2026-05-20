@@ -133,7 +133,7 @@ video/
 | `PORT` | opcional (padrão `3002`) | idem |
 | `SUPABASE_URL` | vazio | obrigatório |
 | `SUPABASE_ANON_KEY` | vazio | obrigatório |
-| `SUPABASE_SERVICE_ROLE_KEY` | vazio | **recomendado** no servidor |
+| `SUPABASE_SERVICE_ROLE_KEY` | vazio | **obrigatório** no Render (evita erro de RLS em `users`) |
 | `GIPHY_API_KEY` | opcional | opcional |
 
 Se `APP_MODE=online` mas faltar URL/chaves do Supabase, o app **cai para offline** automaticamente.

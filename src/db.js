@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { isOnline, isOffline, supabase, sqlite, DEFAULT_BG } = require('./config');
+const { isOnline, isOffline, supabase, tableClient, sqlite, DEFAULT_BG } = require('./config');
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -38,9 +38,9 @@ function sanitizeProfile({ name, avatar, bg_color }) {
 
 // ─── Leitura / escrita de perfil ───────────────────────────────────────────
 
-async function findUserById(userId) {
+async function findUserById(userId, token = null) {
   if (isOnline) {
-    const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
+    const { data, error } = await tableClient(token).from('users').select('*').eq('id', userId).maybeSingle();
     if (error) {
       console.error('findUserById:', error.message);
       return null;
@@ -53,11 +53,11 @@ async function findUserById(userId) {
   return null;
 }
 
-async function upsertUser(row) {
+async function upsertUser(row, token = null) {
   if (isOnline) {
-    const { error } = await supabase.from('users').upsert(row);
+    const { error } = await tableClient(token).from('users').upsert(row);
     if (error) throw new Error(error.message);
-    return findUserById(row.id);
+    return findUserById(row.id, token);
   }
   if (sqlite) {
     const exists = sqlite.prepare('SELECT id FROM users WHERE id = ?').get(row.id);
@@ -82,7 +82,7 @@ async function upsertUser(row) {
 }
 
 async function ensureProfile(auth, patch = {}) {
-  const existing = await findUserById(auth.id);
+  const existing = await findUserById(auth.id, auth.token);
   let email = (patch.email || existing?.email || auth.email || '').toLowerCase();
 
   if (!email && auth.token && isOnline) {
@@ -100,7 +100,7 @@ async function ensureProfile(auth, patch = {}) {
     avatar: patch.avatar !== undefined ? patch.avatar : (existing?.avatar ?? null),
     bg_color: patch.bg_color !== undefined ? patch.bg_color : (existing?.bg_color ?? DEFAULT_BG),
     created_at: existing?.created_at
-  });
+  }, auth.token);
 }
 
 async function updateProfile(auth, fields) {
@@ -114,17 +114,17 @@ async function updateProfile(auth, fields) {
 }
 
 async function loadFullUser(auth, token) {
-  let profile = await findUserById(auth.id);
+  let profile = await findUserById(auth.id, token);
   if (!profile) profile = await ensureProfile(auth);
-  const acervo = await listAcervo(auth.id);
+  const acervo = await listAcervo(auth.id, token);
   return toPublicUser(profile, token, acervo);
 }
 
 // ─── Acervo ────────────────────────────────────────────────────────────────
 
-async function listAcervo(userId) {
+async function listAcervo(userId, token = null) {
   if (isOnline) {
-    const { data, error } = await supabase
+    const { data, error } = await tableClient(token)
       .from('acervo')
       .select('*')
       .eq('user_id', userId)
@@ -141,9 +141,9 @@ async function listAcervo(userId) {
   return [];
 }
 
-async function addToAcervo(userId, item) {
+async function addToAcervo(userId, item, token = null) {
   if (isOnline) {
-    const { error } = await supabase.from('acervo').insert({
+    const { error } = await tableClient(token).from('acervo').insert({
       user_id: userId,
       url: item.url,
       title: item.title,
@@ -151,7 +151,7 @@ async function addToAcervo(userId, item) {
       created_at: new Date().toISOString()
     });
     if (error) throw new Error(error.message);
-    return listAcervo(userId);
+    return listAcervo(userId, token);
   }
   if (sqlite) {
     const now = new Date().toISOString();
@@ -164,11 +164,11 @@ async function addToAcervo(userId, item) {
   throw new Error('Banco não configurado.');
 }
 
-async function removeFromAcervo(userId, url) {
+async function removeFromAcervo(userId, url, token = null) {
   if (isOnline) {
-    const { error } = await supabase.from('acervo').delete().eq('user_id', userId).eq('url', url);
+    const { error } = await tableClient(token).from('acervo').delete().eq('user_id', userId).eq('url', url);
     if (error) throw new Error(error.message);
-    return listAcervo(userId);
+    return listAcervo(userId, token);
   }
   if (sqlite) {
     sqlite.prepare('DELETE FROM acervo WHERE user_id = ? AND url = ?').run(userId, url);
@@ -221,7 +221,7 @@ async function register({ name, email, password, avatar }) {
       email: emailNorm,
       avatar: avatar || null,
       bg_color: DEFAULT_BG
-    });
+    }, token);
 
     return loadFullUser(auth, token);
   }
@@ -278,7 +278,7 @@ async function validateOnlineSession(userId, token) {
   if (!token) return null;
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user || data.user.id !== userId) return null;
-  let profile = await findUserById(userId);
+  let profile = await findUserById(userId, token);
   if (!profile) {
     profile = await ensureProfile({
       id: userId,

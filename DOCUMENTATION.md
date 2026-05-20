@@ -315,6 +315,16 @@ Cole **inteiro** no SQL Editor do Supabase. Ele:
 
 **Não** inclui `rooms` nem `history` — o app não usa essas tabelas na nuvem.
 
+### RLS ligado ou desligado?
+
+| Abordagem | Quando faz sentido |
+|-----------|-------------------|
+| **RLS desligado** (`DISABLE ROW LEVEL SECURITY`) | **Este projeto.** Só o servidor Node grava nas tabelas; o front chama `/api/*`. Simples e sem erro no login. |
+| **RLS ligado + políticas** | App mobile/web que usa Supabase **direto do navegador** com anon key. |
+| **RLS ligado + SERVICE_ROLE no servidor** | Também funciona, mas é redundante: a service role **já ignora** RLS. |
+
+No painel: **Table Editor → `users` → desligar "Enable Row Level Security"** = mesmo que `supabase/fix-rls.sql`.
+
 ```sql
 -- Resumo (ver arquivo completo em supabase/schema.sql)
 users:  id, name, email, avatar, bg_color, created_at, updated_at
@@ -446,6 +456,7 @@ video/
 | `SQLite não iniciou` | `better-sqlite3` compilado para outra versão do Node | `npm rebuild better-sqlite3` |
 | Ainda conecta no Supabase em “offline” | `.env` com `APP_MODE=online` ou chaves preenchidas | Use `.env.offline.exemple` |
 | Perfil não encontrado (online) | Linha em `users` ausente | Login de novo; `ensureProfile` cria; confira `SERVICE_ROLE_KEY` |
+| `new row violates row-level security policy for table "users"` | RLS ligado no Supabase e servidor sem `SERVICE_ROLE_KEY` | Rode `supabase/fix-rls.sql` e adicione `SUPABASE_SERVICE_ROLE_KEY` no Render |
 | Dados somem no Render | Deploy em modo offline (SQLite) | `APP_MODE=online` + Supabase |
 | Acervo de outro usuário | Sessão/`user_id` errado no front | Logout limpo; login na conta certa |
 | `EXECUTE FUNCTION` falha no SQL | Versão PostgreSQL | Troque por `EXECUTE PROCEDURE` no trigger |
