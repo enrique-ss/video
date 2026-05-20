@@ -2,11 +2,9 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
-const projectRoot = path.resolve(__dirname, '..');
-const dataDir = path.join(projectRoot, 'data');
+const dataDir = path.join(path.resolve(__dirname, '..'), 'data');
 const dbPath = path.join(dataDir, 'video.sqlite');
 
-/** Schema local — espelha supabase/schema.sql (com senha para modo offline). */
 function applySchema(db) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -51,7 +49,7 @@ function recreateDatabase() {
   db.exec('DROP TABLE IF EXISTS acervo; DROP TABLE IF EXISTS users;');
   applySchema(db);
   db.close();
-  console.log(`SQLite recriado em ${dbPath}`);
+  console.log(`SQLite recriado: ${dbPath}`);
 }
 
 if (require.main === module) {

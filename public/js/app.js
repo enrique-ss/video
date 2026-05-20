@@ -75,8 +75,6 @@ function handleSessionExpired(message) {
         name: '',
         socketId: '',
         isHost: false,
-        authMethod: 'guest',
-        tiktokHandle: '',
         color: '',
         avatar: null,
         bg_color: '#0a0a0c',
@@ -114,17 +112,13 @@ async function saveProfileToServer(profileData) {
     return data.user;
 }
 
-// Configurações globais (carregadas via /env.js)
-const ENV = window.ENV || { APP_MODE: 'offline', TIKTOK_LOGIN_ENABLED: false };
+const ENV = window.ENV || { APP_MODE: 'offline' };
 
-// Estrutura de dados do usuário (User)
 let myUser = {
     id: '',
     name: '',
     socketId: '',
     isHost: false,
-    authMethod: 'guest',
-    tiktokHandle: '',
     color: '',
     avatar: null,
     bg_color: '#0a0a0c',
@@ -132,10 +126,7 @@ let myUser = {
     acervo: []
 };
 
-// DOM Elements
 const loginOverlay = document.getElementById('login-overlay');
-const usernameInput = document.getElementById('username-input');
-const joinBtn = document.getElementById('join-btn');
 const tiktokUrlInput = document.getElementById('tiktok-url');
 const addVideoBtn = document.getElementById('add-video-btn');
 const headerInputWrapper = document.querySelector('.header-input-wrapper');
@@ -152,7 +143,6 @@ const startGameBtn = document.getElementById('start-game-btn');
 const playAgainBtn = document.getElementById('play-again-btn');
 const currentUserTag = document.getElementById('current-user-tag');
 
-// --- DUAL AUTH (LOGIN / REGISTER) ELEMENTS ---
 const registerOverlay = document.getElementById('register-overlay');
 
 const loginEmail = document.getElementById('login-email');
@@ -166,7 +156,6 @@ const registerPassword = document.getElementById('register-password');
 const btnSubmitRegister = document.getElementById('btn-submit-register');
 const linkToLogin = document.getElementById('link-to-login');
 
-// Sliding tabs elements
 const tabLoginBtn = document.getElementById('tab-login-btn');
 const tabRegisterBtn = document.getElementById('tab-register-btn');
 const authTabSlider = document.getElementById('auth-tab-slider');
@@ -185,13 +174,12 @@ function switchToTab(tab) {
         if (tabRegisterBtn) tabRegisterBtn.classList.add('active');
     }
 
-    // Dynamic height transition (Safe, pre-calculated values to avoid DOM layout offset squishing)
     const card = document.querySelector('.auth-card');
     if (card) {
         if (tab === 'login') {
-            card.style.height = '430px'; // Aumentado para caber o novo título e footer
+            card.style.height = '430px';
         } else {
-            card.style.height = '595px'; // Aumentado para caber o novo título e footer
+            card.style.height = '595px';
         }
     }
 }
@@ -203,7 +191,6 @@ if (tabRegisterBtn) {
     tabRegisterBtn.addEventListener('click', () => switchToTab('register'));
 }
 
-// Toggle between Login and Register Overlays (Slide effect)
 if (linkToRegister) {
     linkToRegister.addEventListener('click', (e) => {
         e.preventDefault();
@@ -218,7 +205,7 @@ if (linkToLogin) {
     });
 }
 
-// Função para reduzir o tamanho e comprimir fotos de perfil antes de enviar
+// Comprime avatar antes do upload (evita payload grande na API)
 function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -228,7 +215,6 @@ function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
             let width = img.width;
             let height = img.height;
 
-            // Mantém a proporção da imagem ao redimensionar
             if (width > height) {
                 if (width > maxWidth) {
                     height *= maxWidth / width;
@@ -247,7 +233,6 @@ function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Transforma em JPEG compactado de tamanho reduzido (menos de 5KB-10KB)
             const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
             callback(compressedBase64);
         };
@@ -256,7 +241,6 @@ function compressImageFile(file, maxWidth, maxHeight, quality, callback) {
     reader.readAsDataURL(file);
 }
 
-// Helper para gerar o HTML do avatar (tanto emoji quanto imagem em base64/URL)
 function getAvatarHtml(avatar, color) {
     if (!avatar) {
         return `<span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1.5px solid ${color || '#00f2ea'};"></span>`;
@@ -269,7 +253,6 @@ function getAvatarHtml(avatar, color) {
     }
 }
 
-// Submit Register Form
 let registrationAvatar = null;
 
 const registerAvatarPreview = document.getElementById('register-avatar-preview');
@@ -293,7 +276,6 @@ if (registerAvatarFile) {
         compressImageFile(file, 128, 128, 0.7, (base64Url) => {
             registrationAvatar = base64Url;
 
-            // Atualiza miniatura de visualização
             registerPreviewImg.src = base64Url;
             registerPreviewImg.style.display = 'block';
             registerPreviewPlaceholder.style.display = 'none';
@@ -331,7 +313,6 @@ btnSubmitRegister.addEventListener('click', async () => {
     }
 });
 
-// Submit Login Form
 btnSubmitLogin.addEventListener('click', async () => {
     const email = loginEmail.value.trim();
     const password = loginPassword.value;
@@ -360,15 +341,11 @@ btnSubmitLogin.addEventListener('click', async () => {
     }
 });
 
-// --- RECONNECT & SESSION SYNC ---
 socket.on('connect', () => {
-    // Ao conectar, enviamos nossas credenciais (id e token). O servidor fará a busca no Banco de Dados
-    // para recuperar nossa foto, cor e nome sempre atualizados, garantindo a sincronização em tempo real.
-    if (myUser && myUser.id) {
+    if (myUser?.id) {
         socket.emit('join', {
             id: myUser.id,
             token: myUser.token || null,
-            // Envia como fallback apenas, o servidor dará prioridade ao banco de dados
             name: myUser.name,
             avatar: myUser.avatar,
             bg_color: myUser.bg_color
@@ -394,7 +371,6 @@ socket.on('profileError', (msg) => {
     alert(msg || 'Erro ao salvar perfil.');
 });
 
-// --- SESSION CONTROL (TK-06 & TK-07) ---
 (async function restoreSession() {
     const savedUser = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!savedUser) {
@@ -432,7 +408,6 @@ socket.on('profileError', (msg) => {
     }
 })();
 
-// Evento de clique no nome do usuário para abrir o menu de opções
 if (currentUserTag) {
     currentUserTag.addEventListener('click', () => {
         const modal = document.getElementById('options-modal');
@@ -497,14 +472,13 @@ function updateCurrentUserTag() {
         const isImage = myUser.avatar && (myUser.avatar.startsWith('http') || myUser.avatar.startsWith('data:image'));
         const avatarHtml = myUser.avatar 
             ? (isImage 
-                ? '' // Fotos do dispositivo/link não aparecem no cabeçalho
+                ? ''
                 : `<span style="font-size: 0.75rem; margin-right: 4px;">${myUser.avatar}</span>`) 
             : '';
         currentUserTag.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 4px;">${avatarHtml}<span>${myUser.name}</span></div>`;
     }
 }
 
-// --- VIDEO FORM SUBMISSION ---
 addVideoBtn.addEventListener('click', () => {
     const url = tiktokUrlInput.value.trim();
     if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
@@ -515,11 +489,9 @@ addVideoBtn.addEventListener('click', () => {
     }
 });
 
-// Universal Media Player (TK-02)
 function renderVideoPlayer(url, isHost) {
     videoWrapper.innerHTML = '';
     
-    // 1. YouTube & YouTube Shorts
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
         let videoId = '';
         if (url.includes('shorts/')) {
@@ -547,7 +519,6 @@ function renderVideoPlayer(url, isHost) {
             renderGenericIframe(url);
         }
     } 
-    // 2. TikTok
     else if (url.includes('tiktok.com')) {
         const match = url.match(/\/video\/(\d+)/) || 
                       url.match(/\/v\/(\d+)/) || 
@@ -570,14 +541,12 @@ function renderVideoPlayer(url, isHost) {
             renderGenericIframe(url);
         }
     }
-    // 3. Native MP4 Video File
     else if (url.match(/\.(mp4|webm|ogg|mov)(?:$|\?)/i)) {
         const video = document.createElement('video');
         video.src = url;
         video.controls = true;
         video.autoplay = true;
         video.loop = true;
-        // Playsinline para rodar sem abrir em tela cheia nativa no iOS Safari (Crucial para Mobile-First!)
         video.setAttribute('playsinline', 'true');
         video.setAttribute('webkit-playsinline', 'true');
         video.style.width = '100%';
@@ -585,12 +554,10 @@ function renderVideoPlayer(url, isHost) {
         video.style.borderRadius = '14px';
         videoWrapper.appendChild(video);
     } 
-    // 4. Fallback Generic Iframe Embed
     else {
         renderGenericIframe(url);
     }
 
-    // Skip/Trigger Voting button exclusively shown to the Host (TK-02)
     if (isHost) {
         const finishBtn = document.createElement('button');
         const isAssistir = window.currentGameMode === 'ASSISTIR';
@@ -647,7 +614,6 @@ function renderGenericIframe(url) {
 
 
 
-// --- HOST START & RESET PARTY COMMANDS ---
 const gameModeModal = document.getElementById('game-mode-modal');
 const modePalpitarBtn = document.getElementById('mode-palpitar-btn');
 const modeAssistirBtn = document.getElementById('mode-assistir-btn');
@@ -688,9 +654,7 @@ if (playAgainBtn) {
     });
 }
 
-// --- STATE MACHINE SYNCING SYSTEM (TK-01) ---
 socket.on('syncState', (state) => {
-    // console.log('Sincronização de Estado recebida:', state);
     window.currentGameMode = state.gameMode || 'PALPITAR';
     
     const serverMe = state.users.find(u => u.id === myUser.id);
@@ -698,8 +662,6 @@ socket.on('syncState', (state) => {
         myUser.isHost = serverMe.isHost;
         myUser.color = serverMe.color;
         
-        // A FONTE DA VERDADE AGORA É O SERVIDOR (BANCO DE DADOS)
-        // Sempre adotamos o que o servidor enviar para evitar dessincronização (garante a permanência de dados)
         myUser.name = serverMe.name;
         myUser.avatar = serverMe.avatar;
         myUser.bg_color = serverMe.bg_color || '#0a0a0c';
@@ -709,28 +671,24 @@ socket.on('syncState', (state) => {
         updateCurrentUserTag();
     }
 
-    // Toggle start game button inside Header (Top) exclusively for Host
     if (state.status === 'LOBBY' && myUser.isHost) {
         startGameBtn.style.display = 'block';
     } else {
         startGameBtn.style.display = 'none';
     }
 
-    // Oculta a opção de Acervo quando a partida já começou (exceto no modo ASSISTIR)
     if (openAcervoBtn) {
         const allowAcervo = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
         if (allowAcervo) {
             openAcervoBtn.style.display = 'flex';
         } else {
             openAcervoBtn.style.display = 'none';
-            // Se o usuário estiver com o acervo aberto quando o host inicia, fecha o modal
             if (optionsModal && !optionsModal.classList.contains('hidden') && optionsAcervoPanel && !optionsAcervoPanel.classList.contains('hidden')) {
                 optionsModal.classList.add('hidden');
             }
         }
     }
 
-    // Block video additions outside lobby (unless it's 'ASSISTIR' mode while playing) and hide it during active game states
     const allowVideoAddition = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
 
     if (allowVideoAddition) {
@@ -747,12 +705,11 @@ socket.on('syncState', (state) => {
         if (headerInputWrapper) headerInputWrapper.style.display = 'none';
     }
 
-    // Overlays triggers
     if (state.status === 'VOTING') {
         votingOverlay.classList.remove('hidden');
     } else {
         votingOverlay.classList.add('hidden');
-        chatMessages.classList.remove('silent'); // Garante que o blur seja removido ao sair do estado de votação
+        chatMessages.classList.remove('silent');
     }
 
     if (state.status === 'PODIUM') {
@@ -767,14 +724,11 @@ socket.on('syncState', (state) => {
         playAgainBtn.style.display = 'none';
     }
 
-    // Video Player execution
     if (state.status === 'PLAYING' && state.currentVideo) {
         if (window.currentRenderedVideoUrl !== state.currentVideo.url) {
             window.currentRenderedVideoUrl = state.currentVideo.url;
             renderVideoPlayer(state.currentVideo.url, myUser.isHost);
         } else {
-            // Se o vídeo já estiver sendo renderizado, garante que o botão do host esteja sincronizado
-            // caso a liderança (host) tenha mudado sem que o vídeo trocasse.
             let finishBtn = videoWrapper.querySelector('.finish-video-btn');
             if (myUser.isHost) {
                 if (!finishBtn) {
@@ -792,7 +746,7 @@ socket.on('syncState', (state) => {
             }
         }
     } else {
-        window.currentRenderedVideoUrl = null; // Reseta estado do player quando não estiver tocando
+        window.currentRenderedVideoUrl = null;
         if (state.status === 'LOBBY') {
             videoWrapper.innerHTML = `
                 <div id="video-placeholder">
@@ -817,10 +771,8 @@ socket.on('syncState', (state) => {
         }
     }
 
-    // Sync playlist count indicator inside Chat Header Slim
     document.getElementById('queue-count').innerText = state.playlist.length;
-    
-    // Sync simplified playlist queue list
+
     if (playlistItems) {
         playlistItems.innerHTML = '';
         if (state.playlist.length === 0) {
@@ -834,10 +786,8 @@ socket.on('syncState', (state) => {
         }
     }
 
-    // Sync online users count in top banner
     document.getElementById('online-count').innerText = `${state.users.length} online`;
 
-    // Sync host indicator next to online status
     const hostUser = state.users.find(u => u.isHost);
     const hostIndicator = document.getElementById('host-indicator');
     if (hostIndicator) {
@@ -849,7 +799,6 @@ socket.on('syncState', (state) => {
         }
     }
 
-    // Sync live chat logs
     chatMessages.innerHTML = '';
     state.chatHistory.forEach(msg => {
         const div = document.createElement('div');
@@ -861,7 +810,6 @@ socket.on('syncState', (state) => {
 
         const avatarHtml = getAvatarHtml(msg.avatar, msg.color);
 
-        // Mesma lógica do newMessage: detecta GIF e renderiza como imagem
         let contentHtml = '';
         const trimmedText = msg.text.trim();
         if (trimmedText.startsWith('http') && (trimmedText.includes('giphy.com') || trimmedText.includes('.gif'))) {
@@ -882,28 +830,23 @@ socket.on('syncState', (state) => {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
-// State triggers re-join State Sync
 socket.on('stateChange', (state) => {
     socket.emit('join', myUser); 
 });
 
-// --- VOTING SYSTEM AND SILENT CHAT (TK-03, TK-04 & TK-09) ---
 socket.on('startVoting', ({ timer, authorId, options }) => {
     votingOverlay.classList.remove('hidden');
     votingOptions.innerHTML = '';
     votingStatus.innerText = 'Aguardando palpites...';
 
-    // Block video owner from voting (don't blur chat for them)
     if (myUser.id === authorId) {
         votingStatus.innerHTML = '<strong style="color: #ff0050; font-size:0.75rem;">Você enviou este vídeo! Aguardando o palpite dos amigos... 🤫</strong>';
         chatMessages.classList.remove('silent');
         return;
     }
 
-    // Blur chat log stream for voters
     chatMessages.classList.add('silent');
 
-    // Draw choices buttons
     options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'vote-btn';
@@ -913,14 +856,12 @@ socket.on('startVoting', ({ timer, authorId, options }) => {
             votingOptions.querySelectorAll('button').forEach(b => b.disabled = true);
             votingStatus.innerText = 'Votado em ' + opt.name + '!';
 
-            // Unblur chat for voting player immediately
             chatMessages.classList.remove('silent');
         };
         votingOptions.appendChild(btn);
     });
 });
 
-// Sync countdown timer tick
 socket.on('votingTick', (time) => {
     const timerFill = document.getElementById('voting-timer-fill');
     if (timerFill) {
@@ -929,7 +870,6 @@ socket.on('votingTick', (time) => {
     }
 });
 
-// Sync podium countdown timer tick
 socket.on('podiumTick', (time) => {
     const timerFill = document.getElementById('podium-timer-fill');
     if (timerFill) {
@@ -942,7 +882,6 @@ socket.on('podiumTick', (time) => {
     }
 });
 
-// Update vote completion progress
 socket.on('votingProgress', ({ votesReceived, totalUsers }) => {
     if (votingOverlay.classList.contains('hidden')) return;
     const statusText = document.getElementById('voting-status');
@@ -951,7 +890,6 @@ socket.on('votingProgress', ({ votesReceived, totalUsers }) => {
     }
 });
 
-// Display final scores on podium
 socket.on('gameFinished', (sortedRanking) => {
     votingOverlay.classList.add('hidden');
     resultsOverlay.classList.remove('hidden');
@@ -983,14 +921,12 @@ socket.on('gameFinished', (sortedRanking) => {
     }
 });
 
-// Clear rounds triggers
 socket.on('gameReset', () => {
     resultsOverlay.classList.add('hidden');
     playAgainBtn.style.display = 'none';
     chatMessages.innerHTML = '<div class="system-msg">Nova rodada iniciada pelo Host!</div>';
 });
 
-// Listener de Reações Flutuantes no Chat
 socket.on('newReaction', (emoji) => {
     createFloatingEmoji(emoji);
 });
@@ -1009,26 +945,20 @@ function createFloatingEmoji(emoji) {
     span.style.opacity = '1';
     span.style.transform = 'translateY(0) scale(1)';
 
-    // Posição horizontal randômica de spawn no chat (10% a 90%)
     const randomLeft = Math.floor(Math.random() * 80) + 10;
     span.style.left = `${randomLeft}%`;
 
     chatMessages.appendChild(span);
 
-    // Inicia a animação no próximo frame
     setTimeout(() => {
-        const randomDriftX = Math.floor(Math.random() * 100) - 50; // Desvio horizontal mais fluido
+        const randomDriftX = Math.floor(Math.random() * 100) - 50;
         span.style.transform = `translate(${randomDriftX}px, -280px) scale(1.5)`;
         span.style.opacity = '0';
     }, 50);
 
-    // Remove do DOM após completar a animação
-    setTimeout(() => {
-        span.remove();
-    }, 4600);
+    setTimeout(() => span.remove(), 4600);
 }
 
-// --- LIVE CHAT SENDER & MESSAGES ---
 sendChatBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
@@ -1072,12 +1002,10 @@ socket.on('newMessage', (msg) => {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
-// Standard Alert messages
 socket.on('errorMsg', (msg) => {
     alert(msg);
 });
 
-// --- MENU DE OPÇÕES E ACERVO (LOCAL STORAGE) ---
 const optionsModal = document.getElementById('options-modal');
 const optionsModalCard = document.getElementById('options-modal-card');
 const optionsMainMenu = document.getElementById('options-main-menu');
@@ -1090,7 +1018,6 @@ const acervoInput = document.getElementById('acervo-input');
 const saveAcervoBtn = document.getElementById('save-acervo-btn');
 const acervoList = document.getElementById('acervo-list');
 
-// Fecha o modal ao clicar fora do card de opções
 if (optionsModal) {
     optionsModal.addEventListener('click', (e) => {
         if (e.target === optionsModal) {
@@ -1120,7 +1047,6 @@ async function getAcervo() {
         const data = await res.json();
         const list = data.list || [];
         
-        // Mantém o acervo fisicamente vinculado e gravado diretamente no objeto do usuário!
         myUser.acervo = list;
         saveUserSession(myUser);
         
@@ -1197,7 +1123,6 @@ async function renderAcervo() {
         const div = document.createElement('div');
         div.style.width = '100%';
         
-        // Determinar título legível e amigável (nunca mostrar a palavra literal "url")
         let displayTitle = item.title && item.title.trim() ? item.title : item.url;
         if (displayTitle === 'url' || !displayTitle) {
             try {
@@ -1215,7 +1140,6 @@ async function renderAcervo() {
             }
         }
 
-        // Sanitizar aspas duplas no thumbnail (especialmente SVGs embutidos) para não quebrar o HTML parser
         const safeThumb = item.thumbnail ? item.thumbnail.replace(/"/g, "'") : '';
         
         div.innerHTML = `
@@ -1231,14 +1155,12 @@ async function renderAcervo() {
             </div>
         `;
         
-        // Wire add to queue button click
         div.querySelector('.use-acervo-btn').addEventListener('click', (e) => {
             const url = e.target.getAttribute('data-url');
             socket.emit('addVideo', url);
             if (optionsModal) optionsModal.classList.add('hidden');
         });
         
-        // Wire delete button click
         div.querySelector('.delete-acervo-btn').addEventListener('click', async (e) => {
             const url = e.currentTarget.getAttribute('data-url');
             await deleteAcervoItem(url);
@@ -1286,7 +1208,6 @@ if (saveAcervoBtn) {
             saveAcervoBtn.innerText = '...';
             saveAcervoBtn.disabled = true;
 
-            // Salvar no banco do usuário (o backend resolve o título e a miniatura de forma segura e livre de CORS!)
             await addAcervoItem(url);
 
             acervoInput.value = '';
@@ -1307,7 +1228,6 @@ if (acervoInput) {
     });
 }
 
-// --- CONTROLE DE EDIÇÃO DE PERFIL ---
 const openEditBtn = document.getElementById('open-edit-btn');
 const optionsEditPanel = document.getElementById('options-edit-panel');
 const editBackToMenuBtn = document.getElementById('edit-back-to-menu-btn');
@@ -1317,7 +1237,6 @@ const btnTriggerEditFile = document.getElementById('btn-trigger-edit-file');
 const editPreviewPlaceholder = document.getElementById('edit-preview-placeholder');
 const editPreviewImg = document.getElementById('edit-preview-img');
 const saveProfileBtn = document.getElementById('save-profile-btn');
-const presetAvatarsGrid = document.getElementById('preset-avatars-grid');
 const editBgColor = document.getElementById('edit-bg-color');
 
 let selectedAvatarEmoji = null;
@@ -1328,8 +1247,6 @@ if (openEditBtn) {
         if (optionsEditPanel) optionsEditPanel.classList.remove('hidden');
         if (optionsModalCard) optionsModalCard.style.width = '300px';
 
-        // Carregar valores atuais
-        
         const currentAvatar = myUser.avatar || '';
         if (currentAvatar.startsWith('data:image') || currentAvatar.startsWith('http')) {
             editPreviewImg.src = currentAvatar;
@@ -1355,7 +1272,6 @@ if (editBackToMenuBtn) {
     });
 }
 
-// Disparador de Seleção de Imagem do Dispositivo
 if (editAvatarPreview) {
     editAvatarPreview.addEventListener('click', () => editAvatarFile.click());
 }
@@ -1371,7 +1287,6 @@ if (editAvatarFile) {
         compressImageFile(file, 128, 128, 0.7, (base64Url) => {
             selectedAvatarEmoji = base64Url;
 
-            // Atualiza a visualização
             editPreviewImg.src = base64Url;
             editPreviewImg.style.display = 'block';
             editPreviewPlaceholder.style.display = 'none';
@@ -1380,7 +1295,6 @@ if (editAvatarFile) {
 }
 
 
-// Salvar as Alterações de Perfil
 if (saveProfileBtn) {
     saveProfileBtn.addEventListener('click', async () => {
         const newAvatar = selectedAvatarEmoji || null;
@@ -1413,7 +1327,6 @@ if (saveProfileBtn) {
     });
 }
 
-// Toggle menu de reações e cliques fora dele
 const reactionToggleBtn = document.getElementById('reaction-toggle-btn');
 const reactionMenu = document.getElementById('reaction-menu');
 const gifToggleBtn = document.getElementById('gif-toggle-btn');
@@ -1426,7 +1339,7 @@ if (reactionToggleBtn && reactionMenu) {
     reactionToggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         reactionMenu.classList.toggle('hidden');
-        if (gifMenu) gifMenu.classList.add('hidden'); // fecha o outro
+        if (gifMenu) gifMenu.classList.add('hidden');
     });
 }
 
@@ -1434,16 +1347,14 @@ if (gifToggleBtn && gifMenu) {
     gifToggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         gifMenu.classList.toggle('hidden');
-        if (reactionMenu) reactionMenu.classList.add('hidden'); // fecha o outro
-        
-        // Se abriu o menu e está vazio, carrega os trending/padrão
+        if (reactionMenu) reactionMenu.classList.add('hidden');
+
         if (!gifMenu.classList.contains('hidden') && gifResultsGrid && gifResultsGrid.children.length === 0) {
             loadGifs('');
         }
     });
 }
 
-// Fechar menus de popover ao clicar fora
 document.addEventListener('click', (e) => {
     if (reactionMenu && !reactionMenu.contains(e.target) && e.target !== reactionToggleBtn) {
         reactionMenu.classList.add('hidden');
@@ -1453,7 +1364,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Função para buscar e renderizar os GIFs da nossa API com debounce
 let gifDebounceTimeout;
 if (gifSearchInput) {
     gifSearchInput.addEventListener('input', (e) => {
@@ -1490,7 +1400,6 @@ async function loadGifs(searchTerm) {
                 img.addEventListener('mouseleave', () => img.style.transform = 'scale(1)');
                 
                 img.addEventListener('click', () => {
-                    // Envia o link do GIF diretamente no chat
                     socket.emit('sendMessage', gif.url);
                     if (gifMenu) gifMenu.classList.add('hidden');
                 });
@@ -1498,7 +1407,6 @@ async function loadGifs(searchTerm) {
                 gifResultsGrid.appendChild(img);
             });
             
-            // Exibir a dica amigável caso esteja usando os fallbacks
             if (gifHintText) {
                 if (data.isFallback) {
                     gifHintText.innerHTML = 'Dica: Adicione <strong style="color: #6366f1;">GIPHY_API_KEY</strong> no seu arquivo .env para pesquisar milhões de GIFs reais!';
@@ -1515,7 +1423,6 @@ async function loadGifs(searchTerm) {
     }
 }
 
-// Ativar as Reações Flutuantes no Clique
 document.querySelectorAll('.reaction-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const emoji = e.currentTarget.getAttribute('data-emoji');
@@ -1528,7 +1435,6 @@ document.querySelectorAll('.reaction-btn').forEach(btn => {
     });
 });
 
-// --- LOGICA DE REDIMENSIONAMENTO DE TELA ---
 const resizer = document.getElementById('resizer-handle');
 const videoWrapperElement = document.getElementById('video-wrapper');
 
@@ -1548,13 +1454,13 @@ if (resizer && videoWrapperElement) {
 
     const doDrag = (e) => {
         if (!isDragging) return;
-        if (e.cancelable) e.preventDefault(); // Evita scroll do mobile durante drag
+        if (e.cancelable) e.preventDefault();
         const currentY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
         const diffY = currentY - startY;
         
         let newHeight = startHeight + diffY;
-        const minHeight = 120; // Altura mínima do player
-        const maxHeight = window.innerHeight * 0.7; // Altura máxima (70% da tela)
+        const minHeight = 120;
+        const maxHeight = window.innerHeight * 0.7;
         
         if (newHeight < minHeight) newHeight = minHeight;
         if (newHeight > maxHeight) newHeight = maxHeight;
@@ -1569,21 +1475,17 @@ if (resizer && videoWrapperElement) {
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         
-        // Salva a altura preferida do usuário para persistência
         localStorage.setItem('cinema_das_guria_player_height', videoWrapperElement.style.height);
     };
 
-    // Mouse Events
     resizer.addEventListener('mousedown', startDrag);
     window.addEventListener('mousemove', doDrag);
     window.addEventListener('mouseup', stopDrag);
 
-    // Touch Events (Mobile)
     resizer.addEventListener('touchstart', startDrag, { passive: true });
     window.addEventListener('touchmove', doDrag, { passive: false });
     window.addEventListener('touchend', stopDrag);
 
-    // Restaurar tamanho salvo ao inicializar
     const savedHeight = localStorage.getItem('cinema_das_guria_player_height');
     if (savedHeight) {
         videoWrapperElement.style.height = savedHeight;

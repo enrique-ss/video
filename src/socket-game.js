@@ -18,8 +18,6 @@ function findSocketUser(socketId) {
 
 function mountSocketGame(io) {
   io.on('connection', (socket) => {
-    console.log('Socket conectado:', socket.id);
-
     socket.on('join', async (userData) => {
       if (!userData?.id) return;
 

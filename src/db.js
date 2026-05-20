@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { isOnline, isOffline, supabase, tableClient, sqlite, DEFAULT_BG } = require('./config');
+const { isOnline, supabase, tableClient, sqlite, DEFAULT_BG } = require('./config');
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -35,8 +35,6 @@ function sanitizeProfile({ name, avatar, bg_color }) {
   }
   return { data: out };
 }
-
-// ─── Leitura / escrita de perfil ───────────────────────────────────────────
 
 async function findUserById(userId, token = null) {
   if (isOnline) {
@@ -120,8 +118,6 @@ async function loadFullUser(auth, token) {
   return toPublicUser(profile, token, acervo);
 }
 
-// ─── Acervo ────────────────────────────────────────────────────────────────
-
 async function listAcervo(userId, token = null) {
   if (isOnline) {
     const { data, error } = await tableClient(token)
@@ -176,8 +172,6 @@ async function removeFromAcervo(userId, url, token = null) {
   }
   throw new Error('Banco não configurado.');
 }
-
-// ─── Auth (HTTP) ───────────────────────────────────────────────────────────
 
 async function parseAuth(req) {
   if (isOnline) {
@@ -272,7 +266,6 @@ async function login({ email, password }) {
   return loadFullUser({ id: row.id, email: row.email, name: row.name }, null);
 }
 
-/** Valida token no modo online (socket). */
 async function validateOnlineSession(userId, token) {
   if (!isOnline) return findUserById(userId);
   if (!token) return null;
@@ -291,18 +284,14 @@ async function validateOnlineSession(userId, token) {
 }
 
 module.exports = {
-  DEFAULT_BG,
-  hashPassword,
-  toPublicUser,
-  findUserById,
-  ensureProfile,
-  updateProfile,
-  loadFullUser,
-  listAcervo,
-  addToAcervo,
-  removeFromAcervo,
   parseAuth,
   register,
   login,
-  validateOnlineSession
+  loadFullUser,
+  updateProfile,
+  listAcervo,
+  addToAcervo,
+  removeFromAcervo,
+  validateOnlineSession,
+  findUserById
 };

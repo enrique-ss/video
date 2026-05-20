@@ -1,13 +1,8 @@
--- =============================================================================
--- CORREÇÃO: "new row violates row-level security policy for table users"
--- Cole no SQL Editor do Supabase e execute.
--- =============================================================================
+-- Corrige erro de RLS no login (execute se users/acervo tiverem RLS ligado)
 
--- Opção A (recomendada para este projeto): desliga RLS — o Node no Render grava com SERVICE_ROLE
 ALTER TABLE IF EXISTS users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS acervo DISABLE ROW LEVEL SECURITY;
 
--- Remove políticas antigas que possam conflitar
 DROP POLICY IF EXISTS users_select_own ON users;
 DROP POLICY IF EXISTS users_insert_own ON users;
 DROP POLICY IF EXISTS users_update_own ON users;

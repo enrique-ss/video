@@ -1,25 +1,19 @@
 {
   "name": "cinema-das-guria",
   "version": "1.0.0",
-  "description": "Cinema das Guria com chat e votação",
+  "description": "Cinema das Guria — watch party com chat e votação",
   "main": "src/index.js",
   "scripts": {
-    "setup": "node src/setup.js",
     "dev": "npx kill-port 3002 && node --watch src/index.js",
-    "dev:offline": "npx kill-port 3002 && node --watch src/index.js",
     "start": "node src/index.js",
     "db:reset": "node src/setup.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",
     "axios": "^1.15.2",
-    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.9.0",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
     "socket.io": "^4.8.3"
   }
 }

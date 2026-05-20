@@ -17,7 +17,7 @@ O mesmo código roda em dois modos. Você escolhe pelo arquivo `.env`:
 | **ID do usuário** | `usr_a1b2c3...` (gerado localmente) | UUID do Supabase Auth |
 | **Sessão na API** | `user_id` na query/body | Header `Authorization: Bearer <token>` |
 | **Internet** | Não precisa de Supabase | Precisa de Supabase + deploy |
-| **Arquivo de exemplo** | `.env.offline.exemple` | `.env.exemple` (seção online) |
+| **Arquivo de exemplo** | `.env.exemple` (bloco offline) | `.env.exemple` (bloco online) |
 
 A sala ao vivo (Socket.io), o player, o chat e a votação funcionam **igual nos dois modos**. Só mudam **onde** perfil, senha e acervo são guardados.
 
@@ -32,17 +32,14 @@ Ideal para testar cadastro, perfil, acervo e sala **antes** de publicar.
 ```powershell
 cd video
 npm install
-copy .env.offline.exemple .env
 ```
 
-Confirme no `.env`:
+Crie `.env` (veja `.env.exemple`):
 
 ```env
 APP_MODE=offline
 PORT=3002
 ```
-
-Não preencha `SUPABASE_URL` nem chaves do Supabase.
 
 ```powershell
 npm rebuild better-sqlite3   # só se o SQLite não subir

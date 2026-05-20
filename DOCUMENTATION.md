@@ -320,10 +320,7 @@ Cole **inteiro** no SQL Editor do Supabase. Ele:
 | Abordagem | Quando faz sentido |
 |-----------|-------------------|
 | **RLS desligado** (`DISABLE ROW LEVEL SECURITY`) | **Este projeto.** Só o servidor Node grava nas tabelas; o front chama `/api/*`. Simples e sem erro no login. |
-| **RLS ligado + políticas** | App mobile/web que usa Supabase **direto do navegador** com anon key. |
-| **RLS ligado + SERVICE_ROLE no servidor** | Também funciona, mas é redundante: a service role **já ignora** RLS. |
-
-No painel: **Table Editor → `users` → desligar "Enable Row Level Security"** = mesmo que `supabase/fix-rls.sql`.
+| **RLS desligado** (recomendado) | Este app: API Node grava tudo; use `fix-rls.sql` ou desmarque RLS no painel. |
 
 ```sql
 -- Resumo (ver arquivo completo em supabase/schema.sql)

@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { sqlite } = require('./config');
 
 const cinemaState = {
