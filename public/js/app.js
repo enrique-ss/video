@@ -620,8 +620,14 @@ const modeAssistirBtn = document.getElementById('mode-assistir-btn');
 
 if (startGameBtn) {
     startGameBtn.addEventListener('click', () => {
-        if (gameModeModal) {
-            gameModeModal.classList.remove('hidden');
+        // If the button shows "Encerrar", reset the game immediately
+        if (startGameBtn.innerText === 'Encerrar') {
+            socket.emit('resetGame');
+        } else {
+            // Otherwise, open the game mode selection modal
+            if (gameModeModal) {
+                gameModeModal.classList.remove('hidden');
+            }
         }
     });
 }
@@ -673,8 +679,17 @@ socket.on('syncState', (state) => {
 
     if (state.status === 'LOBBY' && myUser.isHost) {
         startGameBtn.style.display = 'block';
+        startGameBtn.innerText = 'Iniciar';
     } else {
         startGameBtn.style.display = 'none';
+    }
+    // Update button label for host during active game
+    if (myUser.isHost) {
+        if (state.status === 'PLAYING' || state.status === 'VOTING' || state.status === 'PODIUM') {
+            startGameBtn.innerText = 'Encerrar';
+        } else if (state.status === 'LOBBY') {
+            startGameBtn.innerText = 'Iniciar';
+        }
     }
 
     if (openAcervoBtn) {
@@ -720,7 +735,7 @@ socket.on('syncState', (state) => {
             playAgainBtn.style.display = 'none';
         }
     } else {
-        resultsOverlay.classList.add('hidden');
+        resultsOverlay.classList.hidden = 'hidden';
         playAgainBtn.style.display = 'none';
     }
 
@@ -925,6 +940,12 @@ socket.on('gameReset', () => {
     resultsOverlay.classList.add('hidden');
     playAgainBtn.style.display = 'none';
     chatMessages.innerHTML = '<div class="system-msg">Nova rodada iniciada pelo Host!</div>';
+    // Reset start button label for host
+    if (startGameBtn && myUser.isHost) {
+        startGameBtn.innerText = 'Iniciar';
+        // Ensure button is visible in lobby
+        startGameBtn.style.display = 'block';
+    }
 });
 
 socket.on('newReaction', (emoji) => {
