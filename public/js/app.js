@@ -934,15 +934,27 @@ socket.on('gameFinished', (sortedRanking) => {
 });
 
 socket.on('gameReset', () => {
+    // Hide all overlays
     resultsOverlay.classList.add('hidden');
-        // Clear video player and state
-        videoWrapper.innerHTML = '';
-        window.currentRenderedVideoUrl = null;
+    votingOverlay.classList.add('hidden');
+    playAgainBtn.style.display = 'none';
+    chatMessages.classList.remove('silent');
+
+    // Clear video player and state
+    videoWrapper.innerHTML = `
+        <div id="video-placeholder">
+            <p>Aguardando cinema iniciar...</p>
+            <small>Adicione links no cabeçalho acima!</small>
+        </div>
+    `;
+    window.currentRenderedVideoUrl = null;
+
+    // System message
     chatMessages.innerHTML = '<div class="system-msg">Nova rodada iniciada pelo Host!</div>';
+
     // Reset start button label for host
     if (startGameBtn && myUser.isHost) {
         startGameBtn.innerText = 'Iniciar';
-        // Ensure button is visible in lobby
         startGameBtn.style.display = 'block';
     }
 });

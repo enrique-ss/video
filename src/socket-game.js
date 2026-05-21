@@ -225,7 +225,11 @@ function mountSocketGame(io) {
 
     socket.on('resetGame', () => {
       const user = findSocketUser(socket.id);
-      if (user?.isHost && cinemaState.status === 'PODIUM') autoResetGame(io);
+      if (!user?.isHost) return;
+      // Allow reset from any active state, not only PODIUM
+      if (['PLAYING', 'VOTING', 'PODIUM'].includes(cinemaState.status)) {
+        autoResetGame(io);
+      }
     });
 
     socket.on('disconnect', () => {
