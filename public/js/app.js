@@ -620,11 +620,12 @@ const modeAssistirBtn = document.getElementById('mode-assistir-btn');
 
 if (startGameBtn) {
     startGameBtn.addEventListener('click', () => {
-        // If the button shows "Encerrar", reset the game immediately
-        if (startGameBtn.innerText === 'Encerrar') {
+        // Trim and normalize label
+        const label = startGameBtn.innerText.trim();
+        if (label === 'Encerrar') {
             socket.emit('resetGame');
         } else {
-            // Otherwise, open the game mode selection modal
+            // Open game mode selection modal
             if (gameModeModal) {
                 gameModeModal.classList.remove('hidden');
             }
@@ -934,7 +935,9 @@ socket.on('gameFinished', (sortedRanking) => {
 
 socket.on('gameReset', () => {
     resultsOverlay.classList.add('hidden');
-    playAgainBtn.style.display = 'none';
+        // Clear video player and state
+        videoWrapper.innerHTML = '';
+        window.currentRenderedVideoUrl = null;
     chatMessages.innerHTML = '<div class="system-msg">Nova rodada iniciada pelo Host!</div>';
     // Reset start button label for host
     if (startGameBtn && myUser.isHost) {
