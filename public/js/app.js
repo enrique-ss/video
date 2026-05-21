@@ -677,20 +677,16 @@ socket.on('syncState', (state) => {
         updateCurrentUserTag();
     }
 
-    if (state.status === 'LOBBY' && myUser.isHost) {
-        startGameBtn.style.display = 'block';
+    if (myUser.isHost) {
+    startGameBtn.style.display = 'block';
+    if (state.status === 'LOBBY') {
         startGameBtn.innerText = 'Iniciar';
     } else {
-        startGameBtn.style.display = 'none';
+        startGameBtn.innerText = 'Encerrar';
     }
-    // Update button label for host during active game
-    if (myUser.isHost) {
-        if (state.status === 'PLAYING' || state.status === 'VOTING' || state.status === 'PODIUM') {
-            startGameBtn.innerText = 'Encerrar';
-        } else if (state.status === 'LOBBY') {
-            startGameBtn.innerText = 'Iniciar';
-        }
-    }
+} else {
+    startGameBtn.style.display = 'none';
+}
 
     if (openAcervoBtn) {
         const allowAcervo = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
@@ -735,7 +731,7 @@ socket.on('syncState', (state) => {
             playAgainBtn.style.display = 'none';
         }
     } else {
-        resultsOverlay.classList.hidden = 'hidden';
+        resultsOverlay.classList.add('hidden');
         playAgainBtn.style.display = 'none';
     }
 
