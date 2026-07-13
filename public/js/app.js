@@ -529,7 +529,7 @@ function renderVideoPlayer(url, isHost) {
 
         if (videoId) {
             const iframe = document.createElement('iframe');
-            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?music_info=1&description=1`;
+            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&music_info=1&description=1`;
             iframe.width = '100%';
             iframe.height = '100%';
             iframe.style.borderRadius = '14px';
@@ -1175,14 +1175,14 @@ async function renderAcervo() {
         const safeThumb = item.thumbnail ? item.thumbnail.replace(/"/g, "'") : '';
         
         div.innerHTML = `
-            <div class="acervo-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.015); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; width: 100%; box-sizing: border-box; margin-bottom: 4px; gap: 8px; transition: background 0.2s ease;">
-                <div style="display: flex; align-items: center; gap: 8px; flex-grow: 1; min-width: 0;">
-                    ${safeThumb ? `<img src="${safeThumb}" alt="thumb" style="width: 36px; height: 24px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">` : ''}
-                    <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; text-align: left; flex-grow: 1;" title="${displayTitle}">${displayTitle}</span>
+            <div class="acervo-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.015); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 10px; width: 100%; box-sizing: border-box; margin-bottom: 6px; gap: 10px; transition: background 0.2s ease;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1; min-width: 0;">
+                    ${safeThumb ? `<img src="${safeThumb}" alt="thumb" style="width: 48px; height: 32px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">` : ''}
+                    <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; text-align: left; flex-grow: 1;" title="${displayTitle}">${displayTitle}</span>
                 </div>
-                <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                    <button class="use-acervo-btn" data-url="${item.url}" style="background: var(--accent-cyan); color: #000; border: none; padding: 2px 6px; border-radius: 4px; font-size: 0.62rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease;">Fila</button>
-                    <button class="delete-acervo-btn" data-url="${item.url}" style="background: rgba(255,0,0,0.1); color: var(--accent-pink); border: 1px solid rgba(255,0,0,0.1); padding: 2px 4px; border-radius: 4px; font-size: 0.62rem; cursor: pointer; transition: transform 0.1s ease;">🗑️</button>
+                <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                    <button class="use-acervo-btn" data-url="${item.url}" style="background: var(--accent-cyan); color: #000; border: none; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease;">Fila</button>
+                    <button class="delete-acervo-btn" data-url="${item.url}" style="background: rgba(255,0,0,0.1); color: var(--accent-pink); border: 1px solid rgba(255,0,0,0.1); padding: 4px 6px; border-radius: 6px; font-size: 0.7rem; cursor: pointer; transition: transform 0.1s ease;">🗑️</button>
                 </div>
             </div>
         `;

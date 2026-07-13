@@ -43,6 +43,7 @@ PORT=3002
 
 ```powershell
 npm rebuild better-sqlite3   # só se o SQLite não subir
+npm run setup                # cria as tabelas SQLite
 npm run dev
 ```
 
@@ -53,7 +54,7 @@ Cinema das Guria → http://localhost:3002 (offline / SQLite)
 Banco local: ...\data\video.sqlite
 ```
 
-- Zerar banco local: `npm run db:reset`
+- Zerar banco local: `npm run setup`
 - Dados ficam só no seu PC (arquivo `data/video.sqlite`)
 
 ---
@@ -115,10 +116,8 @@ video/
 
 | Comando | Descrição |
 |---------|-----------|
-| `npm run dev` | Servidor com reload (`--watch`) |
-| `npm start` | Produção / teste simples |
-| `npm run db:reset` | Apaga e recria SQLite (só offline) |
-| `npm run setup` | Alias para reset do SQLite |
+| `npm run setup` | Apaga e recria as tabelas SQLite (modo offline) |
+| `npm run dev` | Inicia o servidor com reload automático (online ou offline, dependendo do `.env`) |
 
 ---
 

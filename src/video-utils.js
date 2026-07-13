@@ -59,29 +59,34 @@ async function resolveVideoMetadata(url) {
     try {
       const res = await axios.get(
         `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
-        { timeout: 3000 }
+        { timeout: 5000 }
       );
       if (res.data?.title) title = res.data.title;
       if (res.data?.thumbnail_url) thumbnail = res.data.thumbnail_url;
-    } catch (_) {}
+    } catch (_) {
+      // Fallback para thumbnail padrão do YouTube se oEmbed falhar
+      thumbnail = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+    }
   } else if (url.includes('tiktok.com')) {
     title = 'Vídeo do TikTok';
-    thumbnail = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90'><rect width='120' height='90' rx='10' fill='%231e1e24'/><polygon points='50,35 75,45 50,55' fill='%23ff0050'/></svg>`;
+    thumbnail = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90'><rect width='120' height='90' rx='10' fill='%231e1e24'/><text x='60' y='50' text-anchor='middle' fill='%23ff0050' font-size='14'>TikTok</text></svg>`;
     try {
       const resolved = await resolveUrlRedirects(url);
       const res = await axios.get(
         `https://www.tiktok.com/oembed?url=${encodeURIComponent(resolved)}`,
-        { timeout: 3000 }
+        { timeout: 5000 }
       );
       if (res.data?.title) title = res.data.title;
       if (res.data?.thumbnail_url) thumbnail = res.data.thumbnail_url;
-    } catch (_) {}
+    } catch (_) {
+      // Mantém o fallback SVG se oEmbed do TikTok falhar
+    }
   } else {
     try {
       const parts = new URL(url).pathname.split('/').filter(Boolean);
       if (parts.length) title = decodeURIComponent(parts.pop());
     } catch (_) {}
-    thumbnail = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90'><rect width='120' height='90' rx='10' fill='%231e1e24'/><polygon points='50,35 75,45 50,55' fill='%2300f2ea'/></svg>`;
+    thumbnail = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90'><rect width='120' height='90' rx='10' fill='%231e1e24'/><text x='60' y='50' text-anchor='middle' fill='%2300f2ea' font-size='12'>Vídeo</text></svg>`;
   }
 
   return { title, thumbnail: thumbnail.replace(/"/g, "'") };
