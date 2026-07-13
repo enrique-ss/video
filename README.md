@@ -118,6 +118,7 @@ video/
 |---------|-----------|
 | `npm run setup` | Apaga e recria as tabelas SQLite (modo offline) |
 | `npm run dev` | Inicia o servidor com reload automático (online ou offline, dependendo do `.env`) |
+| `npm start` | Inicia o servidor em produção (usado pelo Render) |
 
 ---
 
