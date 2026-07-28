@@ -185,6 +185,36 @@ body {
     transform: scale(0.95);
 }
 
+/* Game mode selector */
+.game-mode-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--text-main);
+    font-size: 0.7rem;
+    font-family: var(--font-main);
+    cursor: pointer;
+    outline: none;
+}
+
+.game-mode-select option {
+    background: var(--bg-dark);
+    color: var(--text-main);
+}
+
+/* Game mode display for non-hosts */
+.game-mode-display {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    text-align: center;
+}
+
 .header-right {
     display: flex;
     align-items: center;

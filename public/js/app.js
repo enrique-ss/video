@@ -507,14 +507,40 @@ function renderVideoPlayer(url, isHost) {
         
         if (videoId) {
             const iframe = document.createElement('iframe');
-            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1`;
+            // Começa com mute=1 para garantir autoplay, depois tenta desmutar
+            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=1&playsinline=1&enablejsapi=1`;
             iframe.width = '100%';
             iframe.height = '100%';
             iframe.style.borderRadius = '14px';
             iframe.style.border = 'none';
-            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; playsinline';
             iframe.allowFullscreen = true;
             videoWrapper.appendChild(iframe);
+            
+            // Tenta desmutar após carregar
+            const forceUnmute = () => {
+                try {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+                } catch(e) {}
+            };
+            
+            const forcePlay = () => {
+                try {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                } catch(e) {}
+            };
+            
+            setTimeout(forcePlay, 100);
+            setTimeout(forceUnmute, 500);
+            setTimeout(forceUnmute, 1000);
+            setTimeout(forceUnmute, 2000);
+            
+            // Tenta desmutar quando a aba ganha foco
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    setTimeout(forceUnmute, 100);
+                }
+            });
         } else {
             renderGenericIframe(url);
         }
@@ -529,14 +555,27 @@ function renderVideoPlayer(url, isHost) {
 
         if (videoId) {
             const iframe = document.createElement('iframe');
-            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&music_info=1&description=1`;
+            // Começa com muted=1 para garantir autoplay
+            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=1&music_info=1&description=1&playsinline=1`;
             iframe.width = '100%';
             iframe.height = '100%';
             iframe.style.borderRadius = '14px';
             iframe.style.border = 'none';
-            iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; accelerometer; gyroscope';
+            iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; accelerometer; gyroscope; playsinline';
             iframe.allowFullscreen = true;
             videoWrapper.appendChild(iframe);
+            
+            // Tenta desmutar após carregar recarregando sem mute
+            setTimeout(() => {
+                iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=0&music_info=1&description=1&playsinline=1`;
+            }, 1000);
+            
+            // Tenta novamente quando a aba ganha foco
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=0&music_info=1&description=1&playsinline=1`;
+                }
+            });
         } else {
             renderGenericIframe(url);
         }
@@ -547,11 +586,33 @@ function renderVideoPlayer(url, isHost) {
         video.controls = true;
         video.autoplay = true;
         video.loop = true;
+        video.volume = 1;
         video.setAttribute('playsinline', 'true');
         video.setAttribute('webkit-playsinline', 'true');
+        video.muted = false;
         video.style.width = '100%';
         video.style.height = '100%';
         video.style.borderRadius = '14px';
+        
+        // Força reprodução imediata
+        video.play().catch(e => {
+            console.log('Autoplay blocked, trying with muted:', e);
+            video.muted = true;
+            video.play().then(() => {
+                // Tenta desmutar após reproduzir
+                setTimeout(() => {
+                    video.muted = false;
+                }, 100);
+            }).catch(e2 => console.log('Muted autoplay also blocked:', e2));
+        });
+        
+        // Tenta reproduzir quando a aba ganha visibilidade
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && video.paused) {
+                video.play().catch(e => console.log('Autoplay on visibility change blocked:', e));
+            }
+        });
+        
         videoWrapper.appendChild(video);
     } 
     else {
@@ -614,9 +675,10 @@ function renderGenericIframe(url) {
 
 
 
-const gameModeModal = document.getElementById('game-mode-modal');
-const modePalpitarBtn = document.getElementById('mode-palpitar-btn');
-const modeAssistirBtn = document.getElementById('mode-assistir-btn');
+const gameModeSelect = document.getElementById('game-mode-select');
+const gameModeDisplay = document.getElementById('game-mode-display');
+const currentModeText = document.getElementById('current-mode-text');
+const headerGameControls = document.querySelector('.header-game-controls');
 
 if (startGameBtn) {
     startGameBtn.addEventListener('click', () => {
@@ -625,32 +687,9 @@ if (startGameBtn) {
         if (label === 'Encerrar') {
             socket.emit('resetGame');
         } else {
-            // Open game mode selection modal
-            if (gameModeModal) {
-                gameModeModal.classList.remove('hidden');
-            }
-        }
-    });
-}
-
-if (modePalpitarBtn) {
-    modePalpitarBtn.addEventListener('click', () => {
-        socket.emit('startGame', { mode: 'PALPITAR' });
-        if (gameModeModal) gameModeModal.classList.add('hidden');
-    });
-}
-
-if (modeAssistirBtn) {
-    modeAssistirBtn.addEventListener('click', () => {
-        socket.emit('startGame', { mode: 'ASSISTIR' });
-        if (gameModeModal) gameModeModal.classList.add('hidden');
-    });
-}
-
-if (gameModeModal) {
-    gameModeModal.addEventListener('click', (e) => {
-        if (e.target === gameModeModal) {
-            gameModeModal.classList.add('hidden');
+            // Start game with selected mode from select
+            const selectedMode = gameModeSelect ? gameModeSelect.value : 'PALPITAR';
+            socket.emit('startGame', { mode: selectedMode });
         }
     });
 }
@@ -679,15 +718,28 @@ socket.on('syncState', (state) => {
     }
 
     if (myUser.isHost) {
-    startGameBtn.style.display = 'block';
-    if (state.status === 'LOBBY') {
-        startGameBtn.innerText = 'Iniciar';
+        // Show game mode selector and start button for host
+        if (headerGameControls) headerGameControls.style.display = 'flex';
+        if (gameModeDisplay) gameModeDisplay.style.display = 'none';
+        
+        startGameBtn.style.display = 'block';
+        if (state.status === 'LOBBY') {
+            startGameBtn.innerText = 'Iniciar';
+        } else {
+            startGameBtn.innerText = 'Encerrar';
+        }
     } else {
-        startGameBtn.innerText = 'Encerrar';
+        // Hide game controls for non-hosts
+        if (headerGameControls) headerGameControls.style.display = 'none';
+        startGameBtn.style.display = 'none';
+        
+        // Show current game mode for non-hosts
+        if (gameModeDisplay && currentModeText) {
+            gameModeDisplay.style.display = 'block';
+            const modeLabel = state.gameMode === 'ASSISTIR' ? 'Assistir Juntos' : 'Palpitar';
+            currentModeText.innerText = modeLabel;
+        }
     }
-} else {
-    startGameBtn.style.display = 'none';
-}
 
     if (openAcervoBtn) {
         const allowAcervo = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
@@ -701,7 +753,7 @@ socket.on('syncState', (state) => {
         }
     }
 
-    const allowVideoAddition = state.status === 'LOBBY' || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
+    const allowVideoAddition = (state.status === 'LOBBY' && state.gameMode === 'ASSISTIR') || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
 
     if (allowVideoAddition) {
         tiktokUrlInput.disabled = false;
@@ -850,12 +902,6 @@ socket.on('startVoting', ({ timer, authorId, options }) => {
     votingOverlay.classList.remove('hidden');
     votingOptions.innerHTML = '';
     votingStatus.innerText = 'Aguardando palpites...';
-
-    if (myUser.id === authorId) {
-        votingStatus.innerHTML = '<strong style="color: #ff0050; font-size:0.75rem;">Você enviou este vídeo! Aguardando o palpite dos amigos... 🤫</strong>';
-        chatMessages.classList.remove('silent');
-        return;
-    }
 
     chatMessages.classList.add('silent');
 
@@ -1190,7 +1236,6 @@ async function renderAcervo() {
         div.querySelector('.use-acervo-btn').addEventListener('click', (e) => {
             const url = e.target.getAttribute('data-url');
             socket.emit('addVideo', url);
-            if (optionsModal) optionsModal.classList.add('hidden');
         });
         
         div.querySelector('.delete-acervo-btn').addEventListener('click', async (e) => {

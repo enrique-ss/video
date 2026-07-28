@@ -73,8 +73,18 @@
                     <input type="text" id="tiktok-url" placeholder="Adicionar link...">
                     <button id="add-video-btn">＋</button>
                 </div>
-                <!-- Host Start button inside the header -->
-                <button id="start-game-btn" class="header-start-btn" style="display: none;">Iniciar</button>
+                <!-- Game Mode Selector and Start button -->
+                <div class="header-game-controls" style="display: none; gap: 8px; align-items: center;">
+                    <select id="game-mode-select" class="game-mode-select">
+                        <option value="PALPITAR">Palpitar</option>
+                        <option value="ASSISTIR">Assistir Juntos</option>
+                    </select>
+                    <button id="start-game-btn" class="header-start-btn">Iniciar</button>
+                </div>
+                <!-- Game Mode Display for non-hosts -->
+                <div id="game-mode-display" class="game-mode-display" style="display: none;">
+                    <span id="current-mode-text">Palpitar</span>
+                </div>
             </div>
             <div class="header-right">
                 <div id="current-user-tag" class="user-tag" title="Clique para sair"></div>

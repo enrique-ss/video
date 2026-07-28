@@ -83,14 +83,55 @@ function mountSocketGame(io) {
       socket.emit('syncState', getClientState());
     });
 
-    socket.on('startGame', (data) => {
+    socket.on('startGame', async (data) => {
       const user = findSocketUser(socket.id);
       if (!user?.isHost || cinemaState.status !== 'LOBBY') return;
-      if (!cinemaState.playlist.length) {
-        return socket.emit('errorMsg', 'Adicione pelo menos um vídeo!');
+
+      const gameMode = data?.mode === 'ASSISTIR' ? 'ASSISTIR' : 'PALPITAR';
+      cinemaState.gameMode = gameMode;
+
+      if (gameMode === 'PALPITAR') {
+        // Selecionar 5 vídeos aleatórios do acervo de cada usuário
+        const allUsers = Object.values(cinemaState.users);
+        let totalVideos = 0;
+
+        for (const u of allUsers) {
+          const acervo = await db.listAcervo(u.id, u.token);
+          if (acervo.length > 0) {
+            // Embaralhar e pegar até 5 vídeos
+            const shuffled = [...acervo].sort(() => Math.random() - 0.5);
+            const selectedVideos = shuffled.slice(0, 5);
+
+            for (const video of selectedVideos) {
+              // Verificar se o vídeo já está na playlist para evitar duplicatas
+              const normalized = normalizeUrl(video.url);
+              if (!cinemaState.playlist.some((v) => normalizeUrl(v.url) === normalized)) {
+                cinemaState.playlist.push({
+                  id: crypto.randomUUID(),
+                  url: video.url,
+                  addedBy: u.id,
+                  played: false
+                });
+                cinemaState.videoAuthorsInRound.add(u.id);
+                totalVideos++;
+              }
+            }
+          }
+        }
+
+        if (totalVideos === 0) {
+          return socket.emit('errorMsg', 'Nenhum vídeo encontrado nos acervos dos usuários!');
+        }
+
+        shuffleArray(cinemaState.playlist);
+      } else {
+        // Modo ASSISTIR: verifica se há vídeos na playlist manual
+        if (!cinemaState.playlist.length) {
+          return socket.emit('errorMsg', 'Adicione pelo menos um vídeo!');
+        }
+        shuffleArray(cinemaState.playlist);
       }
-      cinemaState.gameMode = data?.mode === 'ASSISTIR' ? 'ASSISTIR' : 'PALPITAR';
-      shuffleArray(cinemaState.playlist);
+
       cinemaState.status = 'PLAYING';
       cinemaState.currentVideo = cinemaState.playlist.shift();
       io.emit('stateChange', getClientState());
@@ -101,8 +142,9 @@ function mountSocketGame(io) {
 
     socket.on('addVideo', async (url) => {
       const playingAssistir = cinemaState.status === 'PLAYING' && cinemaState.gameMode === 'ASSISTIR';
-      if (cinemaState.status !== 'LOBBY' && !playingAssistir) {
-        return socket.emit('errorMsg', 'O jogo já começou!');
+      const lobbyAssistir = cinemaState.status === 'LOBBY' && cinemaState.gameMode === 'ASSISTIR';
+      if (!lobbyAssistir && !playingAssistir) {
+        return socket.emit('errorMsg', 'Adição de vídeos só permitida no modo ASSISTIR!');
       }
       const user = findSocketUser(socket.id);
       if (!user) return;
@@ -155,9 +197,6 @@ function mountSocketGame(io) {
       if (cinemaState.status !== 'VOTING' || !cinemaState.voting.active) return;
       const user = findSocketUser(socket.id);
       if (!user || cinemaState.voting.votesTrack[user.id]) return;
-      if (user.id === cinemaState.currentVideo.addedBy) {
-        return socket.emit('errorMsg', 'Você não pode votar no seu próprio vídeo!');
-      }
       cinemaState.voting.votesTrack[user.id] = votedUserId;
       emitVotingProgress(io);
       io.emit('stateChange', getClientState());
@@ -271,10 +310,9 @@ function mountSocketGame(io) {
 
   function emitVotingProgress(io) {
     if (!cinemaState.voting.active || !cinemaState.currentVideo) return;
-    const authorId = cinemaState.currentVideo.addedBy;
-    const eligible = Object.values(cinemaState.users).filter((u) => u.id !== authorId);
+    const eligible = Object.values(cinemaState.users);
     const votes = Object.keys(cinemaState.voting.votesTrack).filter(
-      (id) => cinemaState.users[id] && id !== authorId
+      (id) => cinemaState.users[id]
     ).length;
     io.emit('votingProgress', { votesReceived: votes, totalUsers: eligible.length });
   }
