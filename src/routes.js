@@ -1,7 +1,7 @@
 const axios = require('axios');
 const db = require('./db');
 const { isOnline } = require('./config');
-const { extractRealUrl, resolveVideoMetadata } = require('./video-utils');
+const { extractRealUrl, resolveVideoMetadata, getInstagramDirectUrl } = require('./video-utils');
 
 const FALLBACK_GIFS = [
   { id: '1', title: 'Pipoca', url: 'https://media.giphy.com/media/l0HlPystfePnAI3G8/giphy.gif' },
@@ -77,7 +77,34 @@ function mountRoutes(app) {
     const auth = await db.parseAuth(req);
     if (!auth) return res.status(401).json({ error: 'Sessão inválida.' });
     const list = await db.listAcervo(auth.id, auth.token);
-    res.json({ success: true, list });
+    
+    // Atualiza metadados de vídeos com títulos genéricos
+    const updatedList = await Promise.all(list.map(async (item) => {
+      // Se o título for genérico ("Vídeo do YouTube", "Vídeo do TikTok", etc), tenta atualizar
+      if (item.title && (
+        item.title.startsWith('Vídeo do YouTube') ||
+        item.title.startsWith('Vídeo do TikTok') ||
+        item.title.startsWith('Vídeo do Instagram') ||
+        item.title.startsWith('Vídeo (') ||
+        item.title === 'Vídeo'
+      )) {
+        try {
+          const meta = await resolveVideoMetadata(item.url);
+          // Atualiza no banco de dados
+          await db.updateAcervoItem(auth.id, item.url, { 
+            title: meta.title, 
+            thumbnail: meta.thumbnail 
+          }, auth.token);
+          return { ...item, title: meta.title, thumbnail: meta.thumbnail };
+        } catch (error) {
+          console.log('Erro ao atualizar metadados:', error.message);
+          return item;
+        }
+      }
+      return item;
+    }));
+    
+    res.json({ success: true, list: updatedList });
   });
 
   app.post('/api/acervo', async (req, res) => {
@@ -105,6 +132,24 @@ function mountRoutes(app) {
     try {
       const list = await db.removeFromAcervo(auth.id, url, auth.token);
       res.json({ success: true, list });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/instagram-direct-url', async (req, res) => {
+    const url = req.query.url;
+    if (!url || !url.includes('instagram.com')) {
+      return res.status(400).json({ error: 'URL do Instagram obrigatória.' });
+    }
+
+    try {
+      const directUrl = await getInstagramDirectUrl(url);
+      if (directUrl) {
+        res.json({ success: true, directUrl });
+      } else {
+        res.status(404).json({ error: 'Não foi possível obter URL direta do vídeo.' });
+      }
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

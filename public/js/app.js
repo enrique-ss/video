@@ -127,9 +127,6 @@ let myUser = {
 };
 
 const loginOverlay = document.getElementById('login-overlay');
-const tiktokUrlInput = document.getElementById('tiktok-url');
-const addVideoBtn = document.getElementById('add-video-btn');
-const headerInputWrapper = document.querySelector('.header-input-wrapper');
 const videoWrapper = document.getElementById('video-wrapper');
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
@@ -479,18 +476,45 @@ function updateCurrentUserTag() {
     }
 }
 
-addVideoBtn.addEventListener('click', () => {
-    const url = tiktokUrlInput.value.trim();
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-        socket.emit('addVideo', url);
-        tiktokUrlInput.value = '';
-    } else {
-        alert('Por favor, insira um link de vídeo válido (http:// ou https://)!');
-    }
-});
-
 function renderVideoPlayer(url, isHost) {
     videoWrapper.innerHTML = '';
+
+    // Função unificada para garantir volume máximo em todos os players
+    const ensureMaxVolume = (element) => {
+        if (element.tagName === 'VIDEO') {
+            element.volume = 1;
+            element.muted = false;
+        } else if (element.tagName === 'IFRAME') {
+            // Tenta controlar volume de iframes via postMessage
+            try {
+                element.contentWindow.postMessage('{"event":"command","func":"setVolume","args":[100]}', '*');
+            } catch(e) {}
+        }
+    };
+
+    // Função unificada para tentar reproduzir com volume
+    const attemptPlayWithVolume = (element) => {
+        if (element.tagName === 'VIDEO') {
+            element.play().then(() => {
+                ensureMaxVolume(element);
+            }).catch(e => {
+                console.log('Autoplay blocked, trying muted first:', e);
+                element.muted = true;
+                element.play().then(() => {
+                    setTimeout(() => {
+                        element.muted = false;
+                        element.volume = 1;
+                    }, 200);
+                }).catch(e2 => console.log('Even muted autoplay blocked:', e2));
+            });
+        } else if (element.tagName === 'IFRAME') {
+            // Para iframes, envia comandos de play e volume
+            try {
+                element.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                setTimeout(() => ensureMaxVolume(element), 100);
+            } catch(e) {}
+        }
+    };
     
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
         let videoId = '';
@@ -507,8 +531,7 @@ function renderVideoPlayer(url, isHost) {
         
         if (videoId) {
             const iframe = document.createElement('iframe');
-            // Começa com mute=1 para garantir autoplay, depois tenta desmutar
-            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=1&playsinline=1&enablejsapi=1`;
+            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1&playsinline=1&enablejsapi=1`;
             iframe.width = '100%';
             iframe.height = '100%';
             iframe.style.borderRadius = '14px';
@@ -516,47 +539,24 @@ function renderVideoPlayer(url, isHost) {
             iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; playsinline';
             iframe.allowFullscreen = true;
             videoWrapper.appendChild(iframe);
-            
-            // Tenta desmutar após carregar
-            const forceUnmute = () => {
-                try {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
-                } catch(e) {}
-            };
-            
-            const forcePlay = () => {
-                try {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-                } catch(e) {}
-            };
-            
-            setTimeout(forcePlay, 100);
-            setTimeout(forceUnmute, 500);
-            setTimeout(forceUnmute, 1000);
-            setTimeout(forceUnmute, 2000);
-            
-            // Tenta desmutar quando a aba ganha foco
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    setTimeout(forceUnmute, 100);
-                }
-            });
-        } else {
-            renderGenericIframe(url);
+
+            // Tenta reproduzir com volume máximo
+            setTimeout(() => attemptPlayWithVolume(iframe), 100);
+            setTimeout(() => attemptPlayWithVolume(iframe), 500);
+            setTimeout(() => attemptPlayWithVolume(iframe), 1000);
         }
     } 
     else if (url.includes('tiktok.com')) {
-        const match = url.match(/\/video\/(\d+)/) || 
-                      url.match(/\/v\/(\d+)/) || 
-                      url.match(/\/embed\/(\d+)/) || 
+        const match = url.match(/\/video\/(\d+)/) ||
+                      url.match(/\/v\/(\d+)/) ||
+                      url.match(/\/embed\/(\d+)/) ||
                       url.match(/\/embed\/v2\/(\d+)/) ||
                       url.match(/\/player\/v1\/(\d+)/);
         const videoId = match ? match[1] : null;
 
         if (videoId) {
             const iframe = document.createElement('iframe');
-            // Começa com muted=1 para garantir autoplay
-            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=1&music_info=1&description=1&playsinline=1`;
+            iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=0&music_info=1&description=1&playsinline=1`;
             iframe.width = '100%';
             iframe.height = '100%';
             iframe.style.borderRadius = '14px';
@@ -564,59 +564,62 @@ function renderVideoPlayer(url, isHost) {
             iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; accelerometer; gyroscope; playsinline';
             iframe.allowFullscreen = true;
             videoWrapper.appendChild(iframe);
-            
-            // Tenta desmutar após carregar recarregando sem mute
-            setTimeout(() => {
-                iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=0&music_info=1&description=1&playsinline=1`;
-            }, 1000);
-            
-            // Tenta novamente quando a aba ganha foco
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    iframe.src = `https://www.tiktok.com/player/v1/${videoId}?autoplay=1&muted=0&music_info=1&description=1&playsinline=1`;
-                }
-            });
-        } else {
-            renderGenericIframe(url);
+
+            // Tenta reproduzir com volume máximo
+            setTimeout(() => attemptPlayWithVolume(iframe), 100);
+            setTimeout(() => attemptPlayWithVolume(iframe), 500);
         }
+        // Se não conseguir extrair o ID, não mostra nada (sem player externo)
     }
-    else if (url.match(/\.(mp4|webm|ogg|mov)(?:$|\?)/i)) {
+    else if (url.includes('instagram.com')) {
+        videoWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: white;"><p>Carregando vídeo...</p></div>';
+
+        fetch(`/api/instagram-direct-url?url=${encodeURIComponent(url)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.directUrl) {
+                    const video = document.createElement('video');
+                    video.src = data.directUrl;
+                    video.controls = true;
+                    video.autoplay = true;
+                    video.loop = true;
+                    video.setAttribute('playsinline', 'true');
+                    video.setAttribute('webkit-playsinline', 'true');
+                    video.style.width = '100%';
+                    video.style.height = '100%';
+                    video.style.objectFit = 'contain';
+                    video.style.borderRadius = '14px';
+                    video.style.background = '#000';
+                    videoWrapper.innerHTML = '';
+                    videoWrapper.appendChild(video);
+
+                    // Tenta reproduzir com volume máximo
+                    attemptPlayWithVolume(video);
+                } else {
+                    renderInstagramEmbed(url);
+                }
+            })
+            .catch(() => {
+                renderInstagramEmbed(url);
+            });
+    }
+    else {
+        // Para todos os outros (vídeos diretos)
         const video = document.createElement('video');
         video.src = url;
         video.controls = true;
         video.autoplay = true;
         video.loop = true;
-        video.volume = 1;
         video.setAttribute('playsinline', 'true');
         video.setAttribute('webkit-playsinline', 'true');
-        video.muted = false;
         video.style.width = '100%';
         video.style.height = '100%';
         video.style.borderRadius = '14px';
-        
-        // Força reprodução imediata
-        video.play().catch(e => {
-            console.log('Autoplay blocked, trying with muted:', e);
-            video.muted = true;
-            video.play().then(() => {
-                // Tenta desmutar após reproduzir
-                setTimeout(() => {
-                    video.muted = false;
-                }, 100);
-            }).catch(e2 => console.log('Muted autoplay also blocked:', e2));
-        });
-        
-        // Tenta reproduzir quando a aba ganha visibilidade
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && video.paused) {
-                video.play().catch(e => console.log('Autoplay on visibility change blocked:', e));
-            }
-        });
-        
+
         videoWrapper.appendChild(video);
-    } 
-    else {
-        renderGenericIframe(url);
+
+        // Tenta reproduzir com volume máximo
+        attemptPlayWithVolume(video);
     }
 
     if (isHost) {
@@ -629,50 +632,33 @@ function renderVideoPlayer(url, isHost) {
     }
 }
 
-function renderGenericIframe(url) {
-    const container = document.createElement('div');
-    container.style.width = '100%';
-    container.style.height = '100%';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.alignItems = 'center';
-    container.style.justifyContent = 'center';
-    container.style.gap = '10px';
-    container.style.padding = '10px';
-    container.style.textAlign = 'center';
+function renderInstagramEmbed(url) {
+    const postMatch = url.match(/\/p\/([^\/?]+)/);
+    const reelMatch = url.match(/\/reel\/([^\/?]+)/) || url.match(/\/reels\/([^\/?]+)/);
 
-    const iframe = document.createElement('iframe');
-    iframe.src = url;
-    iframe.style.width = '100%';
-    iframe.style.height = '70%';
-    iframe.style.borderRadius = '10px';
-    iframe.style.border = 'none';
-    iframe.allowFullscreen = true;
-    
-    const fallbackText = document.createElement('p');
-    fallbackText.innerHTML = `Player externo carregado. Caso dê erro, clique abaixo:`;
-    fallbackText.style.fontSize = '0.65rem';
-    fallbackText.style.opacity = '0.6';
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.innerText = 'Abrir vídeo ➔';
-    link.style.display = 'inline-block';
-    link.style.padding = '6px 12px';
-    link.style.background = 'var(--accent-cyan)';
-    link.style.color = '#000';
-    link.style.fontWeight = '700';
-    link.style.borderRadius = '6px';
-    link.style.textDecoration = 'none';
-    link.style.fontSize = '0.75rem';
-    
-    container.appendChild(iframe);
-    container.appendChild(fallbackText);
-    container.appendChild(link);
-    videoWrapper.appendChild(container);
+    const shortcode = postMatch ? postMatch[1] : (reelMatch ? reelMatch[1] : null);
+    const isReel = !!reelMatch;
+
+    if (shortcode) {
+        const iframe = document.createElement('iframe');
+        const embedPath = isReel ? `reel/${shortcode}` : `p/${shortcode}`;
+        iframe.src = `https://www.instagram.com/${embedPath}/embed?hidecaption=true&maxwidth=400&cr=1&v=1&rd=1&autoplay=1`;
+        iframe.width = '100%';
+        iframe.height = '100%';
+        iframe.style.borderRadius = '14px';
+        iframe.style.border = 'none';
+        iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share';
+        iframe.allowFullscreen = true;
+        videoWrapper.appendChild(iframe);
+
+        // Tenta garantir volume no embed do Instagram
+        setTimeout(() => {
+            try {
+                iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+            } catch(e) {}
+        }, 500);
+    }
 }
-
 
 
 const gameModeSelect = document.getElementById('game-mode-select');
@@ -751,22 +737,6 @@ socket.on('syncState', (state) => {
                 optionsModal.classList.add('hidden');
             }
         }
-    }
-
-    const allowVideoAddition = (state.status === 'LOBBY' && state.gameMode === 'ASSISTIR') || (state.status === 'PLAYING' && state.gameMode === 'ASSISTIR');
-
-    if (allowVideoAddition) {
-        tiktokUrlInput.disabled = false;
-        addVideoBtn.disabled = false;
-        if (headerInputWrapper) headerInputWrapper.style.display = 'flex';
-    } else if (state.status === 'PODIUM') {
-        tiktokUrlInput.disabled = true;
-        addVideoBtn.disabled = true;
-        if (headerInputWrapper) headerInputWrapper.style.display = 'flex';
-    } else {
-        tiktokUrlInput.disabled = true;
-        addVideoBtn.disabled = true;
-        if (headerInputWrapper) headerInputWrapper.style.display = 'none';
     }
 
     if (state.status === 'VOTING') {
@@ -1094,6 +1064,8 @@ const backToMenuBtn = document.getElementById('back-to-menu-btn');
 
 const acervoInput = document.getElementById('acervo-input');
 const saveAcervoBtn = document.getElementById('save-acervo-btn');
+const queueInput = document.getElementById('queue-input');
+const addQueueBtn = document.getElementById('add-queue-btn');
 const acervoList = document.getElementById('acervo-list');
 
 if (optionsModal) {
@@ -1297,10 +1269,30 @@ if (saveAcervoBtn) {
     });
 }
 
+if (addQueueBtn) {
+    addQueueBtn.addEventListener('click', () => {
+        const url = queueInput.value.trim();
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+            socket.emit('addVideo', url);
+            queueInput.value = '';
+        } else {
+            alert('Por favor, digite um link de vídeo válido (começando com http/https).');
+        }
+    });
+}
+
 if (acervoInput) {
     acervoInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             if (saveAcervoBtn) saveAcervoBtn.click();
+        }
+    });
+}
+
+if (queueInput) {
+    queueInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            if (addQueueBtn) addQueueBtn.click();
         }
     });
 }

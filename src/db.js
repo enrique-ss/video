@@ -173,6 +173,41 @@ async function removeFromAcervo(userId, url, token = null) {
   throw new Error('Banco não configurado.');
 }
 
+async function updateAcervoItem(userId, url, updates, token = null) {
+  if (isOnline) {
+    const { error } = await tableClient(token)
+      .from('acervo')
+      .update(updates)
+      .eq('user_id', userId)
+      .eq('url', url);
+    if (error) throw new Error(error.message);
+    return listAcervo(userId, token);
+  }
+  if (sqlite) {
+    const fields = [];
+    const values = [];
+    
+    if (updates.title !== undefined) {
+      fields.push('title = ?');
+      values.push(updates.title);
+    }
+    if (updates.thumbnail !== undefined) {
+      fields.push('thumbnail = ?');
+      values.push(updates.thumbnail);
+    }
+    
+    if (fields.length === 0) return listAcervo(userId);
+    
+    values.push(userId, url);
+    sqlite.prepare(`
+      UPDATE acervo SET ${fields.join(', ')} WHERE user_id = ? AND url = ?
+    `).run(...values);
+    
+    return listAcervo(userId);
+  }
+  throw new Error('Banco não configurado.');
+}
+
 async function parseAuth(req) {
   if (isOnline) {
     const header = req.headers.authorization;
@@ -287,6 +322,7 @@ module.exports = {
   parseAuth,
   register,
   login,
+  updateAcervoItem,
   loadFullUser,
   updateProfile,
   listAcervo,

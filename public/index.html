@@ -68,11 +68,6 @@
     <div class="mobile-frame">
         <header class="app-header">
             <div class="header-left">
-                <!-- Sleek inline input inside the header for adding videos -->
-                <div class="header-input-wrapper">
-                    <input type="text" id="tiktok-url" placeholder="Adicionar link...">
-                    <button id="add-video-btn">＋</button>
-                </div>
                 <!-- Game Mode Selector and Start button -->
                 <div class="header-game-controls" style="display: none; gap: 8px; align-items: center;">
                     <select id="game-mode-select" class="game-mode-select">
@@ -217,8 +212,14 @@
                 
                 <!-- Input to add to Acervo -->
                 <div style="display: flex; gap: 4px; margin-bottom: 8px; width: 100%;">
-                    <input type="text" id="acervo-input" placeholder="Novo link..." style="flex-grow: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 6px 8px; border-radius: 6px; color: var(--text-main); font-size: 0.75rem; outline: none; width: 60%;">
+                    <input type="text" id="acervo-input" placeholder="Adicionar link ao acervo..." style="flex-grow: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 6px 8px; border-radius: 6px; color: var(--text-main); font-size: 0.75rem; outline: none; width: 60%;">
                     <button id="save-acervo-btn" class="use-acervo-btn" style="padding: 0 8px; font-size: 0.7rem; margin: 0; background: var(--accent-cyan); color: #000; border-radius: 6px; border: none; font-weight: 700; cursor: pointer;">Salvar</button>
+                </div>
+                
+                <!-- Input to add directly to queue -->
+                <div style="display: flex; gap: 4px; margin-bottom: 8px; width: 100%;">
+                    <input type="text" id="queue-input" placeholder="Adicionar link à fila..." style="flex-grow: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 6px 8px; border-radius: 6px; color: var(--text-main); font-size: 0.75rem; outline: none; width: 60%;">
+                    <button id="add-queue-btn" class="use-acervo-btn" style="padding: 0 8px; font-size: 0.7rem; margin: 0; background: var(--accent-pink); color: #fff; border-radius: 6px; border: none; font-weight: 700; cursor: pointer;">Fila</button>
                 </div>
                 
                 <!-- Saved links list -->

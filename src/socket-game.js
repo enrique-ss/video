@@ -143,8 +143,10 @@ function mountSocketGame(io) {
     socket.on('addVideo', async (url) => {
       const playingAssistir = cinemaState.status === 'PLAYING' && cinemaState.gameMode === 'ASSISTIR';
       const lobbyAssistir = cinemaState.status === 'LOBBY' && cinemaState.gameMode === 'ASSISTIR';
-      if (!lobbyAssistir && !playingAssistir) {
-        return socket.emit('errorMsg', 'Adição de vídeos só permitida no modo ASSISTIR!');
+      const playingPalpitar = cinemaState.status === 'PLAYING' && cinemaState.gameMode === 'PALPITAR';
+      const lobbyPalpitar = cinemaState.status === 'LOBBY' && cinemaState.gameMode === 'PALPITAR';
+      if (!lobbyAssistir && !playingAssistir && !lobbyPalpitar && !playingPalpitar) {
+        return socket.emit('errorMsg', 'Adição de vídeos só permitida durante o jogo!');
       }
       const user = findSocketUser(socket.id);
       if (!user) return;
