@@ -115,6 +115,15 @@ function mountRoutes(app) {
 
     try {
       const url = extractRealUrl(rawUrl);
+
+      // Verifica se é YouTube ou TikTok
+      const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
+      const isTiktok = url.includes('tiktok.com');
+
+      if (!isYoutube && !isTiktok) {
+        return res.status(400).json({ error: 'Por favor, use apenas links do YouTube ou TikTok!' });
+      }
+
       const meta = await resolveVideoMetadata(url);
       const list = await db.addToAcervo(auth.id, { url, title: meta.title, thumbnail: meta.thumbnail }, auth.token);
       res.status(201).json({ success: true, list });

@@ -91,31 +91,52 @@ function mountSocketGame(io) {
       cinemaState.gameMode = gameMode;
 
       if (gameMode === 'PALPITAR') {
-        // Selecionar 5 vídeos aleatórios do acervo de cada usuário
+        // Selecionar vídeos aleatórios do acervo de forma totalmente aleatória
         const allUsers = Object.values(cinemaState.users);
-        let totalVideos = 0;
+        let allVideos = [];
 
+        // Primeiro, coletar todos os vídeos de todos os usuários
         for (const u of allUsers) {
           const acervo = await db.listAcervo(u.id, u.token);
           if (acervo.length > 0) {
-            // Embaralhar e pegar até 5 vídeos
-            const shuffled = [...acervo].sort(() => Math.random() - 0.5);
-            const selectedVideos = shuffled.slice(0, 5);
+            // Adicionar todos os vídeos com o ID do usuário
+            allVideos.push(...acervo.map(video => ({
+              ...video,
+              userId: u.id
+            })));
+          }
+        }
 
-            for (const video of selectedVideos) {
-              // Verificar se o vídeo já está na playlist para evitar duplicatas
-              const normalized = normalizeUrl(video.url);
-              if (!cinemaState.playlist.some((v) => normalizeUrl(v.url) === normalized)) {
-                cinemaState.playlist.push({
-                  id: crypto.randomUUID(),
-                  url: video.url,
-                  addedBy: u.id,
-                  played: false
-                });
-                cinemaState.videoAuthorsInRound.add(u.id);
-                totalVideos++;
-              }
+        // Embaralhar todos os vídeos juntos (totalmente aleatório)
+        shuffleArray(allVideos);
+
+        // Selecionar até 5 vídeos por usuário da mistura aleatória
+        const videosPerUser = {};
+        for (const video of allVideos) {
+          if (!videosPerUser[video.userId]) {
+            videosPerUser[video.userId] = [];
+          }
+          if (videosPerUser[video.userId].length < 5) {
+            const normalized = normalizeUrl(video.url);
+            // Verificar duplicatas na playlist global
+            if (!cinemaState.playlist.some((v) => normalizeUrl(v.url) === normalized)) {
+              videosPerUser[video.userId].push(video);
             }
+          }
+        }
+
+        // Adicionar os vídeos selecionados à playlist
+        let totalVideos = 0;
+        for (const userId in videosPerUser) {
+          for (const video of videosPerUser[userId]) {
+            cinemaState.playlist.push({
+              id: crypto.randomUUID(),
+              url: video.url,
+              addedBy: userId,
+              played: false
+            });
+            cinemaState.videoAuthorsInRound.add(userId);
+            totalVideos++;
           }
         }
 
@@ -123,6 +144,7 @@ function mountSocketGame(io) {
           return socket.emit('errorMsg', 'Nenhum vídeo encontrado nos acervos dos usuários!');
         }
 
+        // Embaralhar a playlist final para garantir ordem aleatória
         shuffleArray(cinemaState.playlist);
       } else {
         // Modo ASSISTIR: verifica se há vídeos na playlist manual
