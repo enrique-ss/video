@@ -1,17 +1,16 @@
 # Cinema das Guria
 
-Plataforma de watch party em tempo real para assistir a vídeos de forma sincronizada. Conta com sala de exibição integrada com suporte a links do YouTube, TikTok e arquivos MP4, chat interativo com reações e busca de GIFs via API do Giphy, acervo pessoal de mídias e suporte a operação híbrida (offline via SQLite ou online via Supabase).
+Plataforma de watch party sincronizada com chat em tempo real, reprodução de vídeos (YouTube/TikTok/MP4), reações e gifs do Giphy.
 
-## Como rodar localmente
+## Como rodar
 
 1. Instale as dependências:
    ```bash
    npm install
    ```
 2. Crie o arquivo `.env` a partir do modelo:
-   ```env
-   APP_MODE=offline
-   PORT=3002
+   ```bash
+   cp .env.example .env
    ```
 3. Inicialize o banco de dados e rode a aplicação:
    ```bash
